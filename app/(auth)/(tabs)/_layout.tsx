@@ -2,7 +2,7 @@ import { Tabs, useRouter } from "expo-router";
 import { Colors } from "@/constants/Colors";
 import { Theme } from "@/constants/Theme";
 import { Ionicons } from "@expo/vector-icons";
-import { useUser } from "@clerk/clerk-expo";
+import { useAppAuth } from "@/utils/auth";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { View, Text, StyleSheet, Linking, Alert, Platform, TouchableOpacity } from "react-native";
@@ -10,15 +10,15 @@ import { Button } from "@/components/ui/Button";
 import { BlurView } from "expo-blur";
 
 export default function TabLayout() {
-  const { user: clerkUser } = useUser();
+  const { user, logout } = useAppAuth();
   const router = useRouter();
 
   const appUser = useQuery(api.users.getByClerkId, {
-    clerkId: clerkUser?.id ?? "",
+    clerkId: user?.id ?? "",
   });
 
   const latestTriage = useQuery(api.triage.getLatest, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
 
   const createAlert = useMutation(api.alerts.createAlert);
@@ -26,8 +26,8 @@ export default function TabLayout() {
   const isEmergency = latestTriage?.level === "suicide_flag";
 
   const handleTalkToCounselor = async () => {
-    if (!clerkUser) return;
-    await createAlert({ userId: clerkUser.id, type: "counselor_request" });
+    if (!user) return;
+    await createAlert({ userId: user.id, type: "counselor_request" });
     Alert.alert("Request Sent", "A counselor has been notified and will reach out to you shortly.");
   };
 
@@ -73,6 +73,8 @@ export default function TabLayout() {
     );
   }
 
+  const isScreeningComplete = !!appUser?.screeningComplete;
+
   return (
     <Tabs
       screenOptions={{
@@ -103,6 +105,7 @@ export default function TabLayout() {
         name="tools"
         options={{
           title: "Tools",
+          href: isScreeningComplete ? undefined : null,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "apps" : "apps-outline"} size={24} color={color} />
           ),
@@ -112,6 +115,7 @@ export default function TabLayout() {
         name="insights"
         options={{
           title: "Insights",
+          href: isScreeningComplete ? undefined : null,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "stats-chart" : "stats-chart-outline"} size={24} color={color} />
           ),

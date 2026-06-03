@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions } from "react-native";
 import { useRouter } from "expo-router";
-import { useUser } from "@clerk/clerk-expo";
+import { useAppAuth } from "@/utils/auth";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors } from "@/constants/Colors";
@@ -16,7 +16,7 @@ const { width, height } = Dimensions.get('window');
 
 export default function JPMRScreen() {
   const router = useRouter();
-  const { user: clerkUser } = useUser();
+  const { user } = useAppAuth();
   const [step, setStep] = useState(1);
   const [preIntensity, setPreIntensity] = useState(5);
   const [postIntensity, setPostIntensity] = useState(5);
@@ -36,11 +36,11 @@ export default function JPMRScreen() {
   }
 
   async function handleSubmit() {
-    if (!clerkUser) return;
+    if (!user) return;
     setIsSubmitting(true);
     try {
       await createLog({
-        userId: clerkUser.id,
+        userId: user.id,
         preIntensity,
         postIntensity,
         duration: 300,
@@ -117,7 +117,7 @@ export default function JPMRScreen() {
               title="End Session" 
               onPress={() => { setIsPlaying(false); setStep(3); }} 
               variant="outline" 
-              style={[styles.actionBtn, { borderColor: Colors.white + '40' }]}
+              style={StyleSheet.flatten([styles.actionBtn, { borderColor: Colors.white + '40' }])}
               textStyle={{ color: Colors.white }}
             />
           </View>

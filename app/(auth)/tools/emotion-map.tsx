@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions } from "react-native";
 import { useRouter } from "expo-router";
-import { useUser } from "@clerk/clerk-expo";
+import { useAppAuth } from "@/utils/auth";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors } from "@/constants/Colors";
@@ -17,7 +17,7 @@ const { width } = Dimensions.get('window');
 
 export default function EmotionMapScreen() {
   const router = useRouter();
-  const { user: clerkUser } = useUser();
+  const { user } = useAppAuth();
   const [step, setStep] = useState(1);
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
@@ -44,11 +44,11 @@ export default function EmotionMapScreen() {
   }
 
   async function handleSubmit() {
-    if (!clerkUser || !selectedEmotion || selectedRegions.length === 0) return;
+    if (!user || !selectedEmotion || selectedRegions.length === 0) return;
     setIsSubmitting(true);
     try {
       await createLog({
-        userId: clerkUser.id,
+        userId: user.id,
         emotion: selectedEmotion,
         bodyRegions: selectedRegions,
         preIntensity,
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: Theme.borderRadius.xl,
     padding: Theme.spacing.xl,
-    ...Theme.shadows.medium,
+    ...Theme.shadows.secondary,
   },
   stepTitle: {
     fontFamily: Theme.fontFamily.bold,

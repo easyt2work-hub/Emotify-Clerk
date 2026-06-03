@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Switch, ActivityIndicator, Alert, TouchableOpacity, Dimensions } from "react-native";
-import { useAuth, useUser } from "@clerk/clerk-expo";
+import { useAppAuth } from "@/utils/auth";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors } from "@/constants/Colors";
@@ -11,16 +11,18 @@ import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 
 const { width } = Dimensions.get('window');
 
 export default function ProfileScreen() {
-  const { signOut, userId } = useAuth();
-  const { user: clerkUser } = useUser();
+  const { logout, user } = useAppAuth();
+  const router = useRouter();
+  const userId = user?.id;
   const dbUser = useQuery(api.users.getByClerkId, userId ? { clerkId: userId } : "skip");
   const toggleBiometric = useMutation(api.users.toggleBiometric);
   const exportData = useQuery(api.insights.getDailyStats, userId ? { userId: userId } : "skip");
-  
+
   const [isUpdatingBiometric, setIsUpdatingBiometric] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -35,7 +37,7 @@ export default function ProfileScreen() {
 
   const handleSignOut = async () => {
     try {
-      await signOut();
+      await logout();
     } catch (err) {
       console.error("Sign out error:", err);
     }
@@ -44,19 +46,19 @@ export default function ProfileScreen() {
   const handleToggleBiometric = async (newValue: boolean) => {
     if (!userId) return;
     setIsUpdatingBiometric(true);
-    
+
     try {
       if (newValue) {
         const hasHardware = await LocalAuthentication.hasHardwareAsync();
         const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-        
+
         if (!hasHardware || !isEnrolled) {
           Alert.alert("Error", "Your device does not support or have biometrics set up.");
           setIsUpdatingBiometric(false);
           return;
         }
       }
-      
+
       await toggleBiometric({ clerkId: userId, enabled: newValue });
     } catch (err) {
       console.error("Biometric toggle error:", err);
@@ -72,7 +74,7 @@ export default function ProfileScreen() {
     try {
       const csvRows = [];
       csvRows.push("Screening Data");
-      csvRows.push("ClerkID,PHQ9,GAD7,PQ16,WSAS,ReQoL10,Item9,Date");
+      csvRows.push("UserID,PHQ9,GAD7,PQ16,WSAS,ReQoL10,Item9,Date");
       exportData.screenings.forEach((s: any) => {
         csvRows.push(`${userId},${s.phq9_total},${s.gad7_total},${s.pq16_total},${s.wsas_total},${s.reqol10_total},${s.phq9_item9_score},${new Date(s.createdAt).toISOString()}`);
       });
@@ -80,7 +82,7 @@ export default function ProfileScreen() {
 
       const csvString = csvRows.join("\n");
       const fileUri = FileSystem.documentDirectory + "emotify_data_export.csv";
-      
+
       await FileSystem.writeAsStringAsync(fileUri, csvString, {
         encoding: "utf8",
       });
@@ -106,7 +108,7 @@ export default function ProfileScreen() {
     );
   }
 
-  const email = clerkUser?.primaryEmailAddress?.emailAddress || "No email";
+  const email = dbUser.email || "No email";
   const initial = dbUser.alias ? dbUser.alias.charAt(0).toUpperCase() : "U";
 
   return (
@@ -115,7 +117,7 @@ export default function ProfileScreen() {
         colors={Colors.backgroundGradient as any}
         style={StyleSheet.absoluteFill}
       />
-      
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Signature Header */}
         <View style={styles.header}>
@@ -139,37 +141,37 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>YOUR WELLNESS IDENTITY</Text>
             <Text style={styles.sectionSubtitle}>Updated today based on your activity</Text>
           </View>
-          
+
           <View style={styles.identityGrid}>
-            <IdentityCard 
-              icon="leaf" 
-              label="PERSONAL STYLE" 
-              color="#7C5CFF" 
-              traits={wellnessProfile?.personality_traits} 
+            <IdentityCard
+              icon="leaf"
+              label="PERSONAL STYLE"
+              color="#7C5CFF"
+              traits={wellnessProfile?.personality_traits}
               loading={!wellnessProfile}
               delay={300}
             />
-            <IdentityCard 
-              icon="chatbubble" 
-              label="MOOD PATTERN" 
-              color="#FFB6C1" 
-              value={wellnessProfile?.mood_pattern} 
+            <IdentityCard
+              icon="chatbubble"
+              label="MOOD PATTERN"
+              color="#FFB6C1"
+              value={wellnessProfile?.mood_pattern}
               loading={!wellnessProfile}
               delay={400}
             />
-            <IdentityCard 
-              icon="flash" 
-              label="ENERGY PATTERN" 
-              color="#F59E0B" 
-              value={wellnessProfile?.energy_pattern} 
+            <IdentityCard
+              icon="flash"
+              label="ENERGY PATTERN"
+              color="#F59E0B"
+              value={wellnessProfile?.energy_pattern}
               loading={!wellnessProfile}
               delay={500}
             />
-            <IdentityCard 
-              icon="checkmark-circle" 
-              label="GOALS" 
-              color="#00C2FF" 
-              traits={wellnessProfile?.wellness_goals} 
+            <IdentityCard
+              icon="checkmark-circle"
+              label="GOALS"
+              color="#00C2FF"
+              traits={wellnessProfile?.wellness_goals}
               loading={!wellnessProfile}
               delay={600}
             />
@@ -192,10 +194,10 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>SESSIONS</Text>
           <View style={styles.premiumCard}>
-            <DetailRow 
-              icon="time-outline" 
-              label="Last Login" 
-              value={dbUser.lastLogin ? new Date(dbUser.lastLogin).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : "Just now"} 
+            <DetailRow
+              icon="time-outline"
+              label="Last Login"
+              value={dbUser.lastLoginAt ? new Date(dbUser.lastLoginAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : "Just now"}
             />
           </View>
         </View>
@@ -221,15 +223,15 @@ export default function ProfileScreen() {
         </View>
 
         <View style={{ height: 40 }} />
-        <Button 
-          title="Sign Out" 
-          onPress={handleSignOut} 
+        <Button
+          title="Sign Out"
+          onPress={handleSignOut}
           variant="outline"
           style={styles.signOutBtn}
           textStyle={{ color: Colors.error }}
           icon={<Ionicons name="log-out-outline" size={20} color={Colors.error} />}
         />
-        
+
         <View style={{ height: 120 }} />
       </ScrollView>
     </View>

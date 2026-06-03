@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
-import { useUser } from "@clerk/clerk-expo";
+import { useAppAuth } from "@/utils/auth";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors } from "@/constants/Colors";
@@ -9,31 +9,32 @@ import { Ionicons } from "@expo/vector-icons";
 import { generateMicroGoals } from "@/utils/microgoals";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { Button } from "@/components/ui/Button";
 import { REINFORCEMENT_MESSAGES } from "@/constants/Wellness";
 
 export default function MicroGoalsScreen() {
-  const { user: clerkUser } = useUser();
+  const { user } = useAppAuth();
   const today = new Date().toISOString().split('T')[0];
 
   const latestScreening = useQuery(api.screening.getLatest, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
   
   const latestTriage = useQuery(api.triage.getLatest, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
 
   const dailyGoals = useQuery(api.microGoals.getByDate, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
     date: today,
   });
 
   const totalPoints = useQuery(api.microGoals.getTotalPoints, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
   
   const streak = useQuery(api.microGoals.getStreak, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
 
   const createGoal = useMutation(api.microGoals.create);
@@ -49,10 +50,10 @@ export default function MicroGoalsScreen() {
   const availableGoals = generateMicroGoals({ wsas_total, reqol10_total, triage_level });
 
   async function handleAddGoal(goalId: string, label: string, points: number) {
-    if (!clerkUser) return;
+    if (!user) return;
     try {
       await createGoal({
-        userId: clerkUser.id,
+        userId: user.id,
         goalId,
         goal: label,
         points,
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: Theme.borderRadius.full,
-    ...Theme.shadows.soft,
+    ...Theme.shadows.tertiary,
   },
   statText: {
     fontFamily: Theme.fontFamily.bold,
@@ -229,7 +230,7 @@ const styles = StyleSheet.create({
     padding: Theme.spacing.lg,
     borderRadius: Theme.borderRadius.lg,
     marginBottom: Theme.spacing.xl,
-    ...Theme.shadows.soft,
+    ...Theme.shadows.tertiary,
   },
   progressInfo: {
     flexDirection: 'row',
@@ -263,7 +264,7 @@ const styles = StyleSheet.create({
     borderRadius: Theme.borderRadius.xl,
     padding: Theme.spacing.xxl,
     alignItems: 'center',
-    ...Theme.shadows.medium,
+    ...Theme.shadows.secondary,
   },
   emptyTitle: {
     fontFamily: Theme.fontFamily.bold,
@@ -288,7 +289,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     padding: Theme.spacing.lg,
     borderRadius: Theme.borderRadius.lg,
-    ...Theme.shadows.soft,
+    ...Theme.shadows.tertiary,
   },
   goalCardCompleted: { opacity: 0.6 },
   checkCircle: {
@@ -353,7 +354,7 @@ const styles = StyleSheet.create({
     padding: Theme.spacing.lg,
     borderRadius: Theme.borderRadius.lg,
     marginBottom: Theme.spacing.sm,
-    ...Theme.shadows.soft,
+    ...Theme.shadows.tertiary,
   },
   availableIcon: {
     width: 44,

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, StyleSheet, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useUser } from "@clerk/clerk-expo";
+import { useAppAuth } from "@/utils/auth";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors } from "@/constants/Colors";
@@ -10,13 +10,13 @@ import { Button } from "@/components/ui/Button";
 
 export default function DemographicsScreen() {
   const router = useRouter();
-  const { user: clerkUser } = useUser();
+  const { user, updateUser } = useAppAuth();
   const params = useLocalSearchParams<{
     emergencyName: string;
     emergencyPhone: string;
   }>();
 
-  const upsertUser = useMutation(api.users.upsertUser);
+  const completeOnboarding = useMutation(api.users.completeOnboarding);
 
   const [alias, setAlias] = useState("");
   const [age, setAge] = useState("");
@@ -28,13 +28,12 @@ export default function DemographicsScreen() {
   const isValid = alias.trim() && age.trim() && campus.trim() && department.trim();
 
   async function handleSubmit() {
-    if (!clerkUser || !isValid) return;
+    if (!user || !isValid) return;
     setLoading(true);
     setError("");
 
     try {
-      await upsertUser({
-        clerkId: clerkUser.id,
+      await completeOnboarding({
         alias: alias.trim(),
         age: parseInt(age, 10) || 0,
         campus: campus.trim(),
@@ -45,8 +44,13 @@ export default function DemographicsScreen() {
         emergencyContactPhone: params.emergencyPhone || undefined,
       });
 
-      // Go to screening
-      router.replace("/(auth)/screening");
+      await updateUser({
+        ...user,
+        onboardingComplete: true,
+      });
+
+      // Go to app dashboard directly (screening is now a tab/card)
+      router.replace("/(auth)/(tabs)");
     } catch (err: any) {
       console.error("Onboarding error:", err);
       setError("Failed to save your information. Please try again.");

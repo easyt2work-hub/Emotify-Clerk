@@ -1,6 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
-import { api, internal } from "./_generated/api";
+import { query, mutation } from "./_generated/server";
 
 export const getProfile = query({
   args: { userId: v.string() },
@@ -49,7 +48,6 @@ export const updateProfile = mutation({
     let energy_pattern = "Active in evening";
 
     const latestScreening = screenings[0];
-    const totalGoals = microGoals.length;
     const completedGoals = microGoals.filter(g => g.completed).length;
 
     // Mood pattern logic

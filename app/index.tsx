@@ -1,11 +1,11 @@
 import { Redirect } from "expo-router";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAppAuth } from "@/utils/auth";
 
 export default function Index() {
-  const { isSignedIn } = useAuth();
+  const { isAuthenticated } = useAppAuth();
 
-  if (isSignedIn) {
-    return <Redirect href="/(auth)/biometric" />;
+  if (isAuthenticated) {
+    return <Redirect href="/(auth)/(tabs)" />;
   }
 
   return <Redirect href="/(public)/login" />;

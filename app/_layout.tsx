@@ -1,7 +1,5 @@
 import { Slot, useRouter, useSegments } from "expo-router";
-import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/clerk-expo";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
-import { tokenCache } from "@/utils/cache";
+import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { useFonts } from "expo-font";
 import {
   DMSans_400Regular,
@@ -9,20 +7,14 @@ import {
   DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { StatusBar } from "expo-status-bar";
 import { AppState, AppStateStatus } from "react-native";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { AuthProvider, useAppAuth } from "@/utils/auth";
 
 SplashScreen.preventAutoHideAsync();
-
-const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
-if (!publishableKey) {
-  throw new Error(
-    "Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in .env.local"
-  );
-}
 
 const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL;
 if (!convexUrl) {
@@ -32,7 +24,7 @@ if (!convexUrl) {
 const convex = new ConvexReactClient(convexUrl);
 
 function InitialLayout() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user, isLoggingOut } = useAppAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -42,58 +34,43 @@ function InitialLayout() {
     DMSans_700Bold,
   });
 
-  const { user: clerkUser } = useAuth();
-  const dbUser = useQuery(api.users.getByClerkId, clerkUser ? { clerkId: clerkUser } : "skip");
+  const dbUser = useQuery(
+    api.users.getByClerkId,
+    user?.id ? { clerkId: user.id } : "skip"
+  );
   const appState = useRef(AppState.currentState);
   const lastActiveTime = useRef(Date.now());
 
   useEffect(() => {
-    if (!isLoaded || !fontsLoaded) return;
+    if (authLoading || !fontsLoaded) return;
 
-    const inPublicGroup = segments[0] === "(public)";
-    const inAuthGroup = segments[0] === "(auth)";
+    const inPublicGroup = (segments as string[]).includes("(public)");
+    const inAuthGroup = (segments as string[]).includes("(auth)");
 
-    // Initial redirect
-    if (isSignedIn && inPublicGroup) {
-      router.replace("/(auth)/biometric");
-    } else if (!isSignedIn && inAuthGroup) {
-      router.replace("/(public)/login");
-    }
-  }, [isSignedIn, isLoaded, segments, fontsLoaded]);
-
-  // Handle Inactivity Lock (5 minutes)
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === "active"
-      ) {
-        // App has come to the foreground
-        const elapsed = Date.now() - lastActiveTime.current;
-        const fiveMinutes = 5 * 60 * 1000;
-
-        if (isSignedIn && dbUser?.biometricEnabled && elapsed > fiveMinutes) {
-          router.replace("/(auth)/biometric");
+    // Never redirect to biometric while logging out — prevents the loop where
+    // navigation commits to /(public)/login before isAuthenticated flips to false
+    if (!isLoggingOut && isAuthenticated && inPublicGroup) {
+      if (user?.is_first_login) {
+        router.replace("/(public)/change-password");
+      } else {
+        if (!user?.onboardingComplete) {
+          router.replace("/(auth)/onboarding/welcome");
+        } else {
+          router.replace("/(auth)/(tabs)");
         }
       }
-
-      if (nextAppState.match(/inactive|background/)) {
-        lastActiveTime.current = Date.now();
-      }
-
-      appState.current = nextAppState;
-    });
-
-    return () => { subscription.remove(); };
-  }, [isSignedIn, dbUser?.biometricEnabled]);
+    } else if (!isAuthenticated && !isLoggingOut && inAuthGroup) {
+      router.replace("/(public)/login");
+    }
+  }, [isAuthenticated, isLoggingOut, authLoading, segments, fontsLoaded, user?.is_first_login, user?.onboardingComplete]);
 
   useEffect(() => {
-    if (isLoaded && fontsLoaded) {
+    if (!authLoading && fontsLoaded) {
       SplashScreen.hideAsync();
     }
-  }, [isLoaded, fontsLoaded]);
+  }, [authLoading, fontsLoaded]);
 
-  if (!isLoaded || !fontsLoaded) return null;
+  if (authLoading || !fontsLoaded) return null;
 
   return (
     <>
@@ -105,12 +82,33 @@ function InitialLayout() {
 
 export default function RootLayout() {
   return (
-    <ClerkProvider publishableKey={publishableKey!} tokenCache={tokenCache}>
-      <ConvexProvider client={convex}>
-        <ClerkLoaded>
-          <InitialLayout />
-        </ClerkLoaded>
-      </ConvexProvider>
-    </ClerkProvider>
+    <AuthProvider>
+      <ConvexAuthWrapper />
+    </AuthProvider>
+  );
+}
+
+function ConvexAuthWrapper() {
+  const { isLoading, isAuthenticated, isLoggingOut, fetchAccessToken } = useAppAuth();
+
+  // Stable ref to fetchAccessToken to avoid recreating useAuth on every render
+  const fetchAccessTokenRef = useRef(fetchAccessToken);
+  useEffect(() => { fetchAccessTokenRef.current = fetchAccessToken; }, [fetchAccessToken]);
+
+  const useAuth = React.useCallback(() => {
+    return {
+      isLoading,
+      isAuthenticated,
+      fetchAccessToken: async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
+        return fetchAccessTokenRef.current({ forceRefresh: forceRefreshToken });
+      },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isAuthenticated, isLoggingOut]);
+
+  return (
+    <ConvexProviderWithAuth client={convex} useAuth={useAuth}>
+      <InitialLayout />
+    </ConvexProviderWithAuth>
   );
 }

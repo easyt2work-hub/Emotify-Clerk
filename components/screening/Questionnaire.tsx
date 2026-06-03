@@ -15,6 +15,8 @@ interface QuestionnaireProps {
   options: ScreeningOption[];
   onComplete: (answers: number[]) => void;
   onBack?: () => void;
+  initialAnswers?: (number | null)[];
+  onAnswerChange?: (answers: (number | null)[]) => void;
 }
 
 export function Questionnaire({
@@ -24,9 +26,13 @@ export function Questionnaire({
   options,
   onComplete,
   onBack,
+  initialAnswers,
+  onAnswerChange,
 }: QuestionnaireProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<(number | null)[]>(new Array(questions.length).fill(null));
+  // Find first unanswered question to restore progress
+  const initialIndex = initialAnswers ? initialAnswers.findIndex(a => a === null) : 0;
+  const [currentIndex, setCurrentIndex] = useState(initialIndex === -1 ? 0 : initialIndex);
+  const [answers, setAnswers] = useState<(number | null)[]>(() => initialAnswers || new Array(questions.length).fill(null));
 
   const currentQuestion = questions[currentIndex];
   const selectedValue = answers[currentIndex];
@@ -37,10 +43,10 @@ export function Questionnaire({
     const newAnswers = [...answers];
     newAnswers[currentIndex] = value;
     setAnswers(newAnswers);
-
-    if (!isLastQuestion) {
-      setTimeout(() => setCurrentIndex(currentIndex + 1), 300);
+    if (onAnswerChange) {
+      onAnswerChange(newAnswers);
     }
+    // No auto-advance: user must tap "Next Question" to proceed
   }
 
   function goNext() {
@@ -162,7 +168,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Theme.shadows.soft,
+    ...Theme.shadows.tertiary,
   },
   headerTitle: {
     fontFamily: Theme.fontFamily.bold,
@@ -188,7 +194,7 @@ const styles = StyleSheet.create({
     marginBottom: Theme.spacing.xxl,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.5)',
-    ...Theme.shadows.soft,
+    ...Theme.shadows.tertiary,
   },
   questionLabel: {
     fontFamily: Theme.fontFamily.bold,
@@ -215,7 +221,7 @@ const styles = StyleSheet.create({
     padding: Theme.spacing.lg,
     borderWidth: 1.5,
     borderColor: 'transparent',
-    ...Theme.shadows.soft,
+    ...Theme.shadows.tertiary,
   },
   optionBtnSelected: {
     borderColor: Colors.primary,

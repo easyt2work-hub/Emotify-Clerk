@@ -3,21 +3,58 @@ import { v } from "convex/values";
 
 export default defineSchema({
   users: defineTable({
-    clerkId: v.string(),
-    alias: v.string(),
-    age: v.number(),
-    campus: v.string(),
-    department: v.string(),
-    consentVersion: v.string(),
-    consentTimestamp: v.number(),
+    // Custom authentication fields
+    full_name: v.optional(v.string()),
+    email: v.optional(v.string()),
+    mobile_number: v.optional(v.string()),
+    password_hash: v.optional(v.string()),
+    role: v.optional(v.string()), // "admin" | "patient"
+    status: v.optional(v.string()), // "active" | "inactive"
+    is_first_login: v.optional(v.boolean()),
+    created_at: v.optional(v.number()),
+    updated_at: v.optional(v.number()),
+    failedLoginAttempts: v.optional(v.number()),
+    lockoutUntil: v.optional(v.number()),
+    createdAt: v.optional(v.number()), // For backward compatibility with existing DB records
+
+
+
+    // Existing fields made optional for backward compatibility
+    clerkId: v.optional(v.string()),
+    alias: v.optional(v.string()),
+    age: v.optional(v.number()),
+    campus: v.optional(v.string()),
+    department: v.optional(v.string()),
+    consentVersion: v.optional(v.string()),
+    consentTimestamp: v.optional(v.number()),
     emergencyContactName: v.optional(v.string()),
     emergencyContactPhone: v.optional(v.string()),
-    onboardingComplete: v.boolean(),
-    screeningComplete: v.boolean(),
-    biometricEnabled: v.boolean(),
+    onboardingComplete: v.optional(v.boolean()),
+    screeningComplete: v.optional(v.boolean()),
+    biometricEnabled: v.optional(v.boolean()),
     lastLoginAt: v.optional(v.number()),
+  })
+    .index("by_clerkId", ["clerkId"])
+    .index("by_mobile_number", ["mobile_number"]),
+
+  refreshTokens: defineTable({
+    userId: v.id("users"),
+    token: v.string(),
+    expiresAt: v.number(),
+  }).index("by_token", ["token"]),
+
+  otps: defineTable({
+    mobile_number: v.string(),
+    code: v.string(),
+    expiresAt: v.number(),
+  }).index("by_mobile_number", ["mobile_number"]),
+
+  authKeys: defineTable({
+    privateKeyJwk: v.string(), // JSON string
+    publicKeyJwk: v.string(), // JSON string
     createdAt: v.number(),
-  }).index("by_clerkId", ["clerkId"]),
+  }),
+
 
   screenings: defineTable({
     userId: v.string(),

@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert, Dimensions, Animated } from "react-native";
-import { useRouter } from "expo-router";
-import { useUser } from "@clerk/clerk-expo";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useAppAuth } from "@/utils/auth";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors } from "@/constants/Colors";
@@ -11,45 +11,74 @@ import { getDisplayLevel } from "@/utils/triage";
 import { generateInsightMessage } from "@/utils/insights";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import * as SecureStore from "expo-secure-store";
 
 const { width } = Dimensions.get('window');
 
+const TOTAL_QUESTIONS = 47; // PHQ9:9 + GAD7:7 + PQ16:16 + WSAS:5 + ReQoL10:10
+const SCREENING_STORE_KEY = "screening_progress";
+
 export default function DashboardScreen() {
   const router = useRouter();
-  const { user: clerkUser } = useUser();
+  const { user } = useAppAuth();
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const [overallProgress, setOverallProgress] = React.useState(0);
+
+  // Reload screening progress every time this tab is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      async function loadProgress() {
+        try {
+          const saved = await SecureStore.getItemAsync(SCREENING_STORE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved) as Record<string, (number | null)[]>;
+            const totalAnswered = Object.values(parsed).reduce(
+              (sum, arr) => sum + arr.filter((a) => a !== null).length,
+              0
+            );
+            setOverallProgress(Math.round((totalAnswered / TOTAL_QUESTIONS) * 100));
+          } else {
+            setOverallProgress(0);
+          }
+        } catch (e) {
+          setOverallProgress(0);
+        }
+      }
+      loadProgress();
+    }, [])
+  );
 
   const appUser = useQuery(api.users.getByClerkId, {
-    clerkId: clerkUser?.id ?? "",
+    clerkId: user?.id ?? "",
   });
 
   const latestScreening = useQuery(api.screening.getLatest, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
 
   const latestTriage = useQuery(api.triage.getLatest, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
 
   const recentEmotions = useQuery(api.emotionLogs.getRecent, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
 
   const recentJpmr = useQuery(api.jpmrLogs.getRecent, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
 
   const reinforcement = useQuery(api.reinforcement.generatePositiveMessage, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
 
   const updateWellness = useMutation(api.wellness.updateProfile);
 
   React.useEffect(() => {
-    if (clerkUser?.id) {
-      updateWellness({ userId: clerkUser.id });
+    if (user?.id) {
+      updateWellness({ userId: user.id });
     }
-  }, [clerkUser?.id]);
+  }, [user?.id]);
 
   if (appUser === undefined || latestScreening === undefined || latestTriage === undefined) {
     return (
@@ -60,21 +89,47 @@ export default function DashboardScreen() {
   }
 
   const alias = appUser?.alias || "there";
-  const displayLevel = latestTriage ? getDisplayLevel(latestTriage.level as any) : "Unknown";
+  const isScreeningComplete = !!appUser?.screeningComplete;
+
+  const displayLevel = isScreeningComplete
+    ? (latestTriage ? getDisplayLevel(latestTriage.level as any) : "Assessment Pending")
+    : "Initial Screening Required";
   
   const wsasScore = latestScreening?.wsas_total ?? 0;
   const reqolScore = latestScreening?.reqol10_total ?? 0;
 
-  const { recommendation } = generateInsightMessage({
-    triage_level: latestTriage?.level as any || 'mild',
-    wsas_total: wsasScore,
-    reqol10_total: reqolScore,
-    alias,
-    recentEmotions: recentEmotions ?? [],
-    recentTools: recentJpmr ?? [],
-  });
+  const { recommendation } = isScreeningComplete
+    ? generateInsightMessage({
+        triage_level: latestTriage?.level as any || 'mild',
+        wsas_total: wsasScore,
+        reqol10_total: reqolScore,
+        alias,
+        recentEmotions: recentEmotions ?? [],
+        recentTools: recentJpmr ?? [],
+      })
+    : {
+        recommendation: "Welcome to Emotify! Please complete your initial screening test to assess your wellbeing and unlock personalized therapeutic tools."
+      };
 
   const isSevere = latestTriage && ["severe", "suicide_flag", "psychosis_flag"].includes(latestTriage.level);
+
+  const tools = [];
+  if (!isScreeningComplete) {
+    tools.push({
+      id: 'screening',
+      title: 'Take Screening Test',
+      sub: 'Required Initial Assessment',
+      icon: '📋',
+      route: '/(auth)/screening',
+      highlighted: true
+    });
+  }
+  tools.push(
+    { id: 'emotion-map', title: 'Quick Check', sub: 'Body Scan', icon: '🗺️', route: '/(auth)/tools/emotion-map', locked: !isScreeningComplete },
+    { id: 'jpmr', title: 'Relax Now', sub: 'Relaxation', icon: '🧘', route: '/(auth)/tools/jpmr', locked: !isScreeningComplete },
+    { id: 'reframe', title: 'Reframe Now', sub: 'Thoughts', icon: '🧠', route: '/(auth)/tools/reframe', restricted: isSevere, locked: !isScreeningComplete },
+    { id: 'microgoals', title: 'MicroGoals', sub: 'Habits', icon: '🎯', route: '/(auth)/tools/microgoals', locked: !isScreeningComplete }
+  );
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -107,8 +162,46 @@ export default function DashboardScreen() {
           <Text style={styles.date}>{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
         </View>
 
+        {/* Screening Progress Tag */}
+        {!isScreeningComplete && (
+          <TouchableOpacity
+            style={styles.progressTag}
+            activeOpacity={0.85}
+            onPress={() => router.push('/(auth)/screening' as any)}
+          >
+            <LinearGradient
+              colors={['#4F46E5', '#7C3AED']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.progressTagGradient}
+            >
+              <View style={styles.progressTagLeft}>
+                <Ionicons name="clipboard-outline" size={20} color="rgba(255,255,255,0.9)" />
+                <View style={styles.progressTagText}>
+                  <Text style={styles.progressTagTitle}>
+                    Screening {overallProgress}% Complete
+                  </Text>
+                  <Text style={styles.progressTagSub}>
+                    Complete screening to unlock clinical dashboard
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.progressTagRight}>
+                <View style={styles.progressCircle}>
+                  <Text style={styles.progressCircleText}>{overallProgress}%</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.7)" />
+              </View>
+            </LinearGradient>
+            {/* Progress bar */}
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${overallProgress}%` }]} />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Positive Reinforcement Section */}
-        {reinforcement && (
+        {reinforcement && isScreeningComplete && (
           <View style={styles.growthSection}>
             <View style={styles.growthCard}>
               <View style={styles.growthIconBox}>
@@ -125,7 +218,7 @@ export default function DashboardScreen() {
         {/* Hero Card */}
         <View style={styles.heroContainer}>
           <LinearGradient
-            colors={[Colors.primary, Colors.secondary]}
+            colors={isScreeningComplete ? [Colors.primary, Colors.secondary] : ['#4F46E5', '#7C3AED']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.heroCard}
@@ -142,58 +235,76 @@ export default function DashboardScreen() {
         </View>
 
         {/* Stats Section */}
-        <View style={styles.scoreRow}>
-          <View style={styles.scoreCard}>
-            <View style={[styles.iconCircle, { backgroundColor: Colors.primary + '15' }]}>
-              <Ionicons name="fitness-outline" size={20} color={Colors.primary} />
+        {isScreeningComplete && (
+          <View style={styles.scoreRow}>
+            <View style={styles.scoreCard}>
+              <View style={[styles.iconCircle, { backgroundColor: Colors.primary + '15' }]}>
+                <Ionicons name="fitness-outline" size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.scoreValue}>{wsasScore}</Text>
+              <Text style={styles.scoreLabel}>FUNCTIONING</Text>
             </View>
-            <Text style={styles.scoreValue}>{wsasScore}</Text>
-            <Text style={styles.scoreLabel}>FUNCTIONING</Text>
-          </View>
-          
-          <View style={styles.scoreCard}>
-            <View style={[styles.iconCircle, { backgroundColor: Colors.secondary + '15' }]}>
-              <Ionicons name="heart-outline" size={20} color={Colors.secondary} />
+            
+            <View style={styles.scoreCard}>
+              <View style={[styles.iconCircle, { backgroundColor: Colors.secondary + '15' }]}>
+                <Ionicons name="heart-outline" size={20} color={Colors.secondary} />
+              </View>
+              <Text style={styles.scoreValue}>{reqolScore}</Text>
+              <Text style={styles.scoreLabel}>WELL-BEING</Text>
             </View>
-            <Text style={styles.scoreValue}>{reqolScore}</Text>
-            <Text style={styles.scoreLabel}>WELL-BEING</Text>
           </View>
-        </View>
+        )}
 
         <Text style={styles.sectionTitle}>Therapeutic Tools</Text>
 
         {/* Tools Grid */}
         <View style={styles.toolsGrid}>
-          {[
-            { id: 'emotion-map', title: 'Quick Check', sub: 'Body Scan', icon: '🗺️', route: '/(auth)/tools/emotion-map' },
-            { id: 'jpmr', title: 'Relax Now', sub: 'Relaxation', icon: '🧘', route: '/(auth)/tools/jpmr' },
-            { id: 'reframe', title: 'Reframe Now', sub: 'Thoughts', icon: '🧠', route: '/(auth)/tools/reframe', restricted: isSevere },
-            { id: 'microgoals', title: 'MicroGoals', sub: 'Habits', icon: '🎯', route: '/(auth)/tools/microgoals' },
-          ].map((tool, index) => (
-            <View key={tool.id}>
-              <TouchableOpacity 
-                style={[styles.toolCard, tool.restricted && { opacity: 0.6 }]} 
-                activeOpacity={0.9} 
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
-                onPress={() => {
-                  if (tool.restricted) {
-                    Alert.alert("Counselor Recommended", "This tool is best used with professional guidance during high distress.");
-                  } else {
-                    router.push(tool.route as any);
-                  }
-                }}
-              >
-                <Animated.View style={{ transform: [{ scale: scaleAnim }], alignItems: 'center' }}>
-                  <View style={styles.toolIconContainer}>
-                    <Text style={styles.toolEmoji}>{tool.icon}</Text>
-                  </View>
-                  <Text style={styles.toolTitle}>{tool.title}</Text>
-                  <Text style={styles.toolSub}>{tool.sub}</Text>
-                </Animated.View>
-              </TouchableOpacity>
-            </View>
-          ))}
+          {tools.map((tool, index) => {
+            const isFullWidth = tool.highlighted;
+            return (
+              <View key={tool.id} style={isFullWidth && { width: '100%', marginBottom: 8 }}>
+                <TouchableOpacity 
+                  style={[
+                    styles.toolCard, 
+                    isFullWidth && { width: width - Theme.spacing.lg * 2, backgroundColor: 'rgba(255, 255, 255, 0.95)', borderWidth: 1.5, borderColor: '#818CF8' },
+                    tool.locked && { opacity: 0.6 }
+                  ]} 
+                  activeOpacity={0.9} 
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  onPress={() => {
+                    if (tool.locked) {
+                      Alert.alert("Locked Module", "Please complete your initial Screening Test first to unlock therapeutic tools.");
+                    } else if (tool.restricted) {
+                      Alert.alert("Counselor Recommended", "This tool is best used with professional guidance during high distress.");
+                    } else {
+                      router.push(tool.route as any);
+                    }
+                  }}
+                >
+                  <Animated.View style={[{ transform: [{ scale: scaleAnim }], alignItems: 'center', width: '100%' }, isFullWidth && { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 }]}>
+                    <View style={[isFullWidth ? { flexDirection: 'row', alignItems: 'center', gap: 16 } : { alignItems: 'center' }]}>
+                      <View style={[styles.toolIconContainer, isFullWidth && { marginBottom: 0, width: 52, height: 52 }]}>
+                        <Text style={[styles.toolEmoji, isFullWidth && { fontSize: 26 }]}>{tool.icon}</Text>
+                        {tool.locked && (
+                          <View style={styles.lockOverlay}>
+                            <Ionicons name="lock-closed" size={12} color="#475569" />
+                          </View>
+                        )}
+                      </View>
+                      <View style={[isFullWidth ? { alignItems: 'flex-start' } : { alignItems: 'center' }]}>
+                        <Text style={[styles.toolTitle, isFullWidth && { textAlign: 'left', fontSize: 18, color: '#1E1B4B' }]}>{tool.title}</Text>
+                        <Text style={[styles.toolSub, isFullWidth && { textAlign: 'left', color: '#4F46E5' }]}>{tool.sub}</Text>
+                      </View>
+                    </View>
+                    {isFullWidth && (
+                      <Ionicons name="chevron-forward" size={22} color="#4F46E5" />
+                    )}
+                  </Animated.View>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
         </View>
 
         <View style={{ height: 120 }} />
@@ -409,5 +520,81 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textMuted,
     marginTop: 2,
+  },
+  lockOverlay: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressTag: {
+    marginBottom: Theme.spacing.xl,
+    borderRadius: Theme.borderRadius.xl,
+    overflow: 'hidden',
+    ...Theme.shadows.secondary,
+  },
+  progressTagGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Theme.spacing.lg,
+    paddingVertical: 14,
+  },
+  progressTagLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  progressTagText: {
+    flex: 1,
+  },
+  progressTagTitle: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 15,
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  progressTagSub: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.75)',
+    lineHeight: 15,
+  },
+  progressTagRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 12,
+  },
+  progressCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  progressCircleText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 11,
+    color: '#FFFFFF',
+  },
+  progressBarBg: {
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    borderRadius: 2,
   },
 });

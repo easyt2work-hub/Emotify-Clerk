@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Dimensions } from "react-native";
 import { useRouter } from "expo-router";
-import { useUser } from "@clerk/clerk-expo";
+import { useAppAuth } from "@/utils/auth";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors } from "@/constants/Colors";
@@ -12,15 +12,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { REINFORCEMENT_MESSAGES } from "@/constants/Wellness";
+import { ActivityIndicator } from "react-native";
 
 const { width } = Dimensions.get('window');
 
 export default function ReframeScreen() {
   const router = useRouter();
-  const { user: clerkUser } = useUser();
+  const { user } = useAppAuth();
   
   const latestTriage = useQuery(api.triage.getLatest, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
   const createReframe = useMutation(api.reframes.create);
 
@@ -62,11 +63,11 @@ export default function ReframeScreen() {
   }
 
   async function handleSubmit() {
-    if (!clerkUser) return;
+    if (!user) return;
     setIsSubmitting(true);
     try {
       await createReframe({
-        userId: clerkUser.id,
+        userId: user.id,
         situation,
         originalThought,
         thinkingTrap,
@@ -270,7 +271,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: Theme.borderRadius.xl,
     padding: Theme.spacing.xl,
-    ...Theme.shadows.medium,
+    ...Theme.shadows.secondary,
   },
   stepTitle: {
     fontFamily: Theme.fontFamily.bold,
@@ -360,7 +361,7 @@ const styles = StyleSheet.create({
     padding: Theme.spacing.xl,
     borderRadius: Theme.borderRadius.xl,
     alignItems: 'center',
-    ...Theme.shadows.medium,
+    ...Theme.shadows.secondary,
   },
   alertText: {
     fontFamily: Theme.fontFamily.medium,

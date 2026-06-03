@@ -9,11 +9,15 @@
  */
 
 import type * as alerts from "../alerts.js";
+import type * as authHelpers from "../authHelpers.js";
+import type * as dashboard from "../dashboard.js";
 import type * as emotionLogs from "../emotionLogs.js";
 import type * as followUps from "../followUps.js";
+import type * as http from "../http.js";
 import type * as insights from "../insights.js";
 import type * as jpmrLogs from "../jpmrLogs.js";
 import type * as microGoals from "../microGoals.js";
+import type * as patients from "../patients.js";
 import type * as reframes from "../reframes.js";
 import type * as reinforcement from "../reinforcement.js";
 import type * as screening from "../screening.js";
@@ -29,11 +33,15 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   alerts: typeof alerts;
+  authHelpers: typeof authHelpers;
+  dashboard: typeof dashboard;
   emotionLogs: typeof emotionLogs;
   followUps: typeof followUps;
+  http: typeof http;
   insights: typeof insights;
   jpmrLogs: typeof jpmrLogs;
   microGoals: typeof microGoals;
+  patients: typeof patients;
   reframes: typeof reframes;
   reinforcement: typeof reinforcement;
   screening: typeof screening;

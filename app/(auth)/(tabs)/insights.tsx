@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Dimensions } from "react-native";
-import { useUser } from "@clerk/clerk-expo";
+import { useAppAuth } from "@/utils/auth";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors } from "@/constants/Colors";
@@ -12,10 +12,10 @@ import { LineChart } from "react-native-chart-kit";
 const { width } = Dimensions.get('window');
 
 export default function InsightsScreen() {
-  const { user: clerkUser } = useUser();
+  const { user } = useAppAuth();
 
   const stats = useQuery(api.insights.getDailyStats, {
-    userId: clerkUser?.id ?? "",
+    userId: user?.id ?? "",
   });
 
   if (stats === undefined) {

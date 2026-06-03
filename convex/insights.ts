@@ -7,9 +7,7 @@ export const getDailyStats = query({
     // We fetch all records for the user and aggregate them.
     // In a production environment with many records, you'd want to index by date or use a more efficient aggregation.
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayMs = todayStart.getTime();
+
 
     // MicroGoals
     const goals = await ctx.db
