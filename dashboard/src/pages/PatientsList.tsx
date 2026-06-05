@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Users, UserPlus, Search, Edit2, ShieldAlert, ShieldCheck, BarChart2, Trash2 } from "lucide-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -18,33 +19,54 @@ export default function PatientsList() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
 
+  // Custom confirmation modal state configurations
+  const [confirmConfig, setConfirmConfig] = useState<{
+    title: string;
+    message: string;
+    confirmText: string;
+    isDanger: boolean;
+    onConfirm: () => void;
+  } | null>(null);
+
   const handleToggleStatus = async (userId: any, currentStatus: string) => {
     const nextStatus = currentStatus === "active" ? "inactive" : "active";
-    if (confirm(`Are you sure you want to set this user to ${nextStatus.toUpperCase()}?`)) {
-      try {
-        await toggleStatus({ userId, status: nextStatus });
-      } catch (err: any) {
-        alert(err.message || "Failed to update status.");
+    setConfirmConfig({
+      title: currentStatus === "active" ? "Deactivate User Access" : "Activate User Access",
+      message: `Are you sure you want to set this user status to ${nextStatus.toUpperCase()}? This will change their ability to log in to the console.`,
+      confirmText: currentStatus === "active" ? "Deactivate" : "Activate",
+      isDanger: currentStatus === "active",
+      onConfirm: async () => {
+        try {
+          await toggleStatus({ userId, status: nextStatus });
+        } catch (err: any) {
+          alert(err.message || "Failed to update status.");
+        }
       }
-    }
+    });
   };
 
   const handleDeleteUser = async (userId: any, fullName?: string) => {
     const name = fullName || "Unknown User";
-    if (confirm(`Are you sure you want to permanently delete user "${name}"? This will delete all clinical data, logs, and sessions, and cannot be undone.`)) {
-      try {
-        await deleteUser({ userId });
-      } catch (err: any) {
-        alert(err.message || "Failed to delete user.");
+    setConfirmConfig({
+      title: "Delete User Profile?",
+      message: `Are you sure you want to permanently delete user "${name}"? This action is irreversible and will delete all clinical screenings, telemetry logs, and upcoming sessions.`,
+      confirmText: "Delete Permanently",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await deleteUser({ userId });
+        } catch (err: any) {
+          alert(err.message || "Failed to delete user.");
+        }
       }
-    }
+    });
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }} className="animate-fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
-          <h1 style={{ fontSize: '2.4rem', marginBottom: '8px', background: 'linear-gradient(to right, #fff, #94A3B8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>User Directory</h1>
+          <h1 style={{ fontSize: '2.4rem', marginBottom: '8px', color: 'var(--text-primary)' }}>User Directory</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>Manage credentials, update access status, and monitor clinical state.</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowAddModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -71,20 +93,18 @@ export default function PatientsList() {
         />
       )}
 
-      <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', gap: '16px', padding: '24px', borderBottom: '1px solid var(--glass-border)' }}>
-          <div style={{ flex: 1, position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+      <div className="glass-panel hud-panel" style={{ padding: '0', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', gap: '16px', padding: '24px', borderBottom: '1px solid var(--glass-border)', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="input-with-icon" style={{ flex: 1 }}>
+            <Search size={18} className="input-icon" />
             <input 
               type="text" 
               placeholder="Search users by name or mobile number..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 12px 12px 48px', borderRadius: '12px', color: 'white', fontSize: '1rem', outline: 'none', transition: 'border-color 0.2s' }}
-              onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
-              onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
             />
           </div>
+          <span className="hud-tag">SECURE RECORDS</span>
         </div>
 
         <div style={{ overflowX: 'auto' }}>
@@ -106,16 +126,16 @@ export default function PatientsList() {
               ) : patients.map(patient => (
                 <tr key={patient._id}>
                   <td style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(99, 102, 241, 0.15)' }}>
                       <Users size={20} color="var(--accent-primary)" />
                     </div>
                     <div>
-                      <p style={{ fontWeight: 600, color: 'white', fontSize: '1.05rem', margin: 0 }}>{patient.full_name}</p>
+                      <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1.05rem', margin: 0 }}>{patient.full_name}</p>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>ID: {patient._id}</span>
                     </div>
                   </td>
                   <td>
-                    <span style={{ fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', padding: '4px 8px', borderRadius: '6px', color: '#CBD5E1' }}>
+                    <span style={{ fontFamily: 'Outfit, monospace', background: 'var(--surface-base)', border: '1px solid var(--border-color)', padding: '4px 8px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
                       {patient.mobile_number}
                     </span>
                   </td>
@@ -174,6 +194,79 @@ export default function PatientsList() {
           </table>
         </div>
       </div>
+
+      {confirmConfig && createPortal(
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(15, 23, 42, 0.45)",
+          backdropFilter: "blur(12px)",
+          zIndex: 99999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "20px"
+        }}>
+          <div className="glass-panel hud-panel animate-fade-in" style={{
+            width: "100%",
+            maxWidth: "420px",
+            padding: "36px",
+            borderRadius: "20px",
+            borderTop: `3px solid ${confirmConfig.isDanger ? "var(--danger)" : "var(--success)"}`,
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "24px",
+            alignItems: "center",
+            textAlign: "center"
+          }}>
+            <div style={{
+              padding: "16px",
+              background: confirmConfig.isDanger ? "rgba(244, 63, 94, 0.1)" : "rgba(16, 185, 129, 0.1)",
+              borderRadius: "50%",
+              color: confirmConfig.isDanger ? "var(--danger)" : "var(--success)",
+              border: `1px solid ${confirmConfig.isDanger ? "rgba(244, 63, 94, 0.25)" : "rgba(16, 185, 129, 0.25)"}`
+            }}>
+              {confirmConfig.isDanger ? <ShieldAlert size={36} /> : <ShieldCheck size={36} />}
+            </div>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <h2 style={{ fontSize: "1.4rem", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                {confirmConfig.title}
+              </h2>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.92rem", margin: 0, lineHeight: 1.5 }}>
+                {confirmConfig.message}
+              </p>
+            </div>
+
+            <div style={{ display: "flex", gap: "12px", width: "100%", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ flex: 1, padding: "12px" }}
+                onClick={() => setConfirmConfig(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={confirmConfig.isDanger ? "btn btn-danger" : "btn btn-primary"}
+                style={{ flex: 1, padding: "12px" }}
+                onClick={() => {
+                  confirmConfig.onConfirm();
+                  setConfirmConfig(null);
+                }}
+              >
+                {confirmConfig.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

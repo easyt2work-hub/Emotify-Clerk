@@ -60,7 +60,7 @@ export default function PatientDetail() {
             <ArrowLeft size={16} />
           </button>
           <div>
-            <h1 style={{ fontSize: "2.2rem", margin: "0 0 4px 0", background: "linear-gradient(to right, #fff, #94A3B8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <h1 style={{ fontSize: "2.2rem", margin: "0 0 4px 0", color: "var(--text-primary)" }}>
               Patient Clinical State
             </h1>
             <p style={{ color: "var(--text-secondary)", fontSize: "1rem", margin: 0 }}>
@@ -73,13 +73,13 @@ export default function PatientDetail() {
       {/* Patient Card Grid */}
       <div className="grid-3" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }}>
         {/* Left Column - General Info */}
-        <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "24px" }}>
-            <div style={{ width: "72px", height: "72px", borderRadius: "18px", background: "linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="glass-panel hud-panel" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", textAlign: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: "24px" }}>
+            <div style={{ width: "72px", height: "72px", borderRadius: "18px", background: "rgba(37, 99, 235, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(37, 99, 235, 0.15)" }}>
               <User size={32} color="var(--accent-primary)" />
             </div>
             <div>
-              <h2 style={{ color: "white", fontSize: "1.4rem", margin: "0 0 6px 0" }}>{patient.full_name}</h2>
+              <h2 style={{ color: "var(--text-primary)", fontSize: "1.4rem", margin: "0 0 6px 0" }}>{patient.full_name}</h2>
               <span className={`badge ${patient.status === "active" ? "badge-green" : "badge-red"}`}>
                 {patient.status}
               </span>
@@ -91,7 +91,7 @@ export default function PatientDetail() {
               <Phone size={18} color="var(--text-secondary)" />
               <div>
                 <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block" }}>Mobile Number</span>
-                <span style={{ color: "white", fontSize: "0.95rem", fontWeight: 500 }}>{patient.mobile_number}</span>
+                <span style={{ color: "var(--text-primary)", fontSize: "0.95rem", fontWeight: 500, fontFamily: "Outfit, sans-serif" }}>{patient.mobile_number}</span>
               </div>
             </div>
 
@@ -99,7 +99,7 @@ export default function PatientDetail() {
               <Shield size={18} color="var(--text-secondary)" />
               <div>
                 <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block" }}>Role</span>
-                <span style={{ color: "white", fontSize: "0.95rem", fontWeight: 500, textTransform: "capitalize" }}>{patient.role}</span>
+                <span style={{ color: "var(--text-primary)", fontSize: "0.95rem", fontWeight: 500, textTransform: "capitalize" }}>{patient.role}</span>
               </div>
             </div>
 
@@ -107,7 +107,7 @@ export default function PatientDetail() {
               <Calendar size={18} color="var(--text-secondary)" />
               <div>
                 <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block" }}>Enrolled On</span>
-                <span style={{ color: "white", fontSize: "0.95rem", fontWeight: 500 }}>
+                <span style={{ color: "var(--text-primary)", fontSize: "0.95rem", fontWeight: 500, fontFamily: "Outfit, sans-serif" }}>
                   {patient.created_at ? new Date(patient.created_at).toLocaleDateString() : "N/A"}
                 </span>
               </div>
@@ -116,34 +116,37 @@ export default function PatientDetail() {
         </div>
 
         {/* Right Column - Graphical Trends */}
-        <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <h3 style={{ fontSize: "1.2rem", color: "white", display: "flex", alignItems: "center", gap: "8px", margin: 0 }}>
-            <TrendingUp size={20} color="var(--accent-primary)" />
-            Clinical Score Trends
-          </h3>
+        <div className="glass-panel hud-panel" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 0 }}>
+            <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "8px", margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <TrendingUp size={20} color="var(--accent-primary)" />
+              Clinical Score Trends
+            </h3>
+            <span className="hud-tag">TELEMETRY</span>
+          </div>
           <div style={{ height: "300px", width: "100%" }}>
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorPHQ9" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
                     </linearGradient>
                     <linearGradient id="colorGAD7" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="date" stroke="#64748B" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#64748B" fontSize={11} tickLine={false} axisLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="date" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
                   <Tooltip
-                    contentStyle={{ background: "rgba(15, 23, 42, 0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "white" }}
+                    contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", color: "var(--text-primary)" }}
                   />
                   <Legend verticalAlign="top" height={36} />
-                  <Area type="monotone" name="PHQ-9 (Depression)" dataKey="PHQ9" stroke="#3B82F6" strokeWidth={3} fillOpacity={1} fill="url(#colorPHQ9)" />
-                  <Area type="monotone" name="GAD-7 (Anxiety)" dataKey="GAD7" stroke="#8B5CF6" strokeWidth={3} fillOpacity={1} fill="url(#colorGAD7)" />
+                  <Area type="monotone" name="PHQ-9 (Depression)" dataKey="PHQ9" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorPHQ9)" />
+                  <Area type="monotone" name="GAD-7 (Anxiety)" dataKey="GAD7" stroke="#06b6d4" strokeWidth={3} fillOpacity={1} fill="url(#colorGAD7)" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
@@ -156,10 +159,13 @@ export default function PatientDetail() {
       </div>
 
       {/* Tabular Test Results */}
-      <div className="glass-panel" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--glass-border)", display: "flex", alignItems: "center", gap: "10px" }}>
-          <Heart size={20} color="var(--accent-primary)" />
-          <h3 style={{ fontSize: "1.2rem", color: "white", margin: 0 }}>Historical Screening Tests</h3>
+      <div className="glass-panel hud-panel" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--glass-border)", display: "flex", alignItems: "center", gap: "10px", justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Heart size={20} color="var(--accent-primary)" />
+            <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Historical Screening Tests</h3>
+          </div>
+          <span className="hud-tag">ARCHIVED SCAN</span>
         </div>
         <div style={{ overflowX: "auto" }}>
           <table className="data-table">
@@ -185,17 +191,17 @@ export default function PatientDetail() {
                 testResults.map((test) => (
                   <tr key={test._id}>
                     <td>
-                      <span style={{ fontWeight: 600, color: "white" }}>
+                      <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
                         {new Date(test.createdAt).toLocaleString()}
                       </span>
                     </td>
                     <td>
-                      <span style={{ fontWeight: 600, color: test.phq9_total >= 10 ? "#EF4444" : "#10B981" }}>
+                      <span style={{ fontWeight: 600, color: test.phq9_total >= 10 ? "var(--danger)" : "var(--success)" }}>
                         {test.phq9_total} / 27
                       </span>
                     </td>
                     <td>
-                      <span style={{ fontWeight: 600, color: test.gad7_total >= 10 ? "#F59E0B" : "#10B981" }}>
+                      <span style={{ fontWeight: 600, color: test.gad7_total >= 10 ? "var(--warning)" : "var(--success)" }}>
                         {test.gad7_total} / 21
                       </span>
                     </td>

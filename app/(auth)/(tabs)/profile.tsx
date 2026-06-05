@@ -387,7 +387,7 @@ const stylesFactory = (colors: any) => ({
   } as ViewStyle,
   icon: {
     marginRight: Theme.spacing.md,
-  } as ViewStyle,
+  } as TextStyle,
   label: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 15,

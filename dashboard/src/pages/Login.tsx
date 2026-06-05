@@ -39,8 +39,8 @@ export default function Login() {
       justifyContent: "center",
       minHeight: "100vh",
       width: "100vw",
-      background: "radial-gradient(circle at top right, rgba(59, 130, 246, 0.15), transparent), radial-gradient(circle at bottom left, rgba(139, 92, 246, 0.15), transparent), #0B0F19",
-      color: "white",
+      background: "radial-gradient(circle at 50% 50%, #4c1d95 0%, #3b0764 100%)",
+      color: "var(--text-primary)",
       position: "fixed",
       top: 0,
       left: 0,
@@ -51,8 +51,7 @@ export default function Login() {
         maxWidth: "420px",
         padding: "40px",
         borderRadius: "24px",
-        boxShadow: "0 20px 50px rgba(0, 0, 0, 0.3)",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
+        boxShadow: "0 20px 40px rgba(0, 0, 0, 0.15)",
         display: "flex",
         flexDirection: "column",
         gap: "24px"
@@ -60,72 +59,52 @@ export default function Login() {
         <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
           <div style={{
             padding: "16px",
-            background: "linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))",
+            background: "rgba(37, 99, 235, 0.08)",
             borderRadius: "16px",
             color: "var(--accent-primary)",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            border: "1px solid rgba(255, 255, 255, 0.05)"
+            border: "1px solid rgba(37, 99, 235, 0.15)"
           }}>
-            <Activity size={32} color="#3B82F6" />
+            <Activity size={32} color="var(--accent-primary)" />
           </div>
           <h1 style={{
-            fontSize: "2rem",
-            fontWeight: 700,
-            background: "linear-gradient(to right, #ffffff, #94a3b8)",
+            fontSize: "2.2rem",
+            fontWeight: 800,
+            background: "linear-gradient(to right, var(--accent-primary), var(--accent-tertiary))",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
-            margin: 0
+            margin: 0,
+            letterSpacing: "-0.03em"
           }}>EMOTIFY</h1>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", margin: 0 }}>Clinical Command Console</p>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", margin: 0, fontWeight: 500 }}>Clinical Command Console</p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>Mobile Number</label>
-            <div style={{ position: "relative" }}>
-              <Phone size={18} style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: "var(--text-secondary)" }} />
+            <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 600 }}>Mobile Number</label>
+            <div className="input-with-icon">
+              <Phone size={18} className="input-icon" />
               <input
                 type="text"
                 placeholder="1234567890"
                 value={mobileNumber}
                 onChange={(e) => setMobileNumber(e.target.value)}
-                style={{
-                  width: "100%",
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  padding: "14px 14px 14px 48px",
-                  borderRadius: "12px",
-                  color: "white",
-                  fontSize: "1rem",
-                  outline: "none",
-                  boxSizing: "border-box"
-                }}
               />
             </div>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>Password</label>
-            <div style={{ position: "relative" }}>
-              <Lock size={18} style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: "var(--text-secondary)" }} />
+            <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 600 }}>Password</label>
+            <div className="input-with-icon">
+              <Lock size={18} className="input-icon" />
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                style={{
-                  width: "100%",
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  padding: "14px 48px 14px 48px",
-                  borderRadius: "12px",
-                  color: "white",
-                  fontSize: "1rem",
-                  outline: "none",
-                  boxSizing: "border-box"
-                }}
+                style={{ paddingRight: "48px" }}
               />
               <button
                 type="button"
@@ -152,11 +131,12 @@ export default function Login() {
           {error && (
             <div style={{
               padding: "12px 16px",
-              background: "rgba(239, 68, 68, 0.15)",
-              border: "1px solid rgba(239, 68, 68, 0.25)",
+              background: "rgba(239, 68, 68, 0.08)",
+              border: "1px solid rgba(239, 68, 68, 0.2)",
               borderRadius: "10px",
-              color: "#FCA5A5",
+              color: "#b91c1c",
               fontSize: "0.875rem",
+              fontWeight: 600,
               textAlign: "center"
             }}>
               {error}
@@ -172,7 +152,7 @@ export default function Login() {
               padding: "14px",
               borderRadius: "12px",
               fontSize: "1rem",
-              fontWeight: 600,
+              fontWeight: 650,
               display: "flex",
               justifyContent: "center",
               alignItems: "center"

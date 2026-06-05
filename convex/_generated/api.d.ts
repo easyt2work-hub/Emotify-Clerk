@@ -9,6 +9,7 @@
  */
 
 import type * as alerts from "../alerts.js";
+import type * as appointments from "../appointments.js";
 import type * as authHelpers from "../authHelpers.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
@@ -34,6 +35,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   alerts: typeof alerts;
+  appointments: typeof appointments;
   authHelpers: typeof authHelpers;
   crons: typeof crons;
   dashboard: typeof dashboard;

@@ -45,6 +45,17 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_userId", ["userId"]),
 
+  appointments: defineTable({
+    userId: v.id("users"),
+    startTime: v.number(),
+    endTime: v.number(),
+    description: v.optional(v.string()),
+    status: v.string(), // "scheduled" | "cancelled"
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_startTime", ["startTime"]),
+
 
   screenings: defineTable({
     userId: v.string(),

@@ -20,6 +20,93 @@ const { width } = Dimensions.get('window');
 const TOTAL_QUESTIONS = 47; // PHQ9:9 + GAD7:7 + PQ16:16 + WSAS:5 + ReQoL10:10
 const SCREENING_STORE_KEY = "screening_progress";
 
+function getAppointmentTimeLeft(startTime: number, endTime: number, now: number): string | null {
+  if (now > endTime) return null; // already passed
+  
+  if (now >= startTime && now <= endTime) {
+    const diffMs = endTime - now;
+    const mins = Math.floor(diffMs / (60 * 1000));
+    const secs = Math.floor((diffMs % (60 * 1000)) / 1000);
+    return `Ongoing (${mins} mins ${secs} sec left)`;
+  }
+  
+  const diffMs = startTime - now;
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHrs = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHrs / 24);
+  
+  if (diffSecs < 60) {
+    return `${diffSecs} sec left`;
+  }
+  
+  if (diffMins < 60) {
+    const secs = diffSecs % 60;
+    return `${diffMins} mins ${secs} sec left`;
+  }
+  
+  if (diffHrs < 24) {
+    const mins = diffMins % 60;
+    return `${diffHrs} hrs ${mins} mins left`;
+  }
+  
+  const hrs = diffHrs % 24;
+  return `${diffDays} days ${hrs} hrs left`;
+}
+
+function AppointmentCountdown({
+  startTime,
+  endTime,
+  colors,
+}: {
+  startTime: number;
+  endTime: number;
+  colors: any;
+}) {
+  const [timeLeft, setTimeLeft] = React.useState<string | null>(() =>
+    getAppointmentTimeLeft(startTime, endTime, Date.now())
+  );
+  const [isOngoing, setIsOngoing] = React.useState(() => {
+    const now = Date.now();
+    return now >= startTime && now <= endTime;
+  });
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const left = getAppointmentTimeLeft(startTime, endTime, now);
+      setTimeLeft(left);
+      setIsOngoing(now >= startTime && now <= endTime);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [startTime, endTime]);
+
+  return (
+    <View style={{ marginTop: 4 }}>
+      <Text style={{ fontSize: 11, color: '#EF4444', fontFamily: Theme.fontFamily.medium }}>
+        Debug: now={Date.now()} start={startTime} end={endTime} left={String(timeLeft)}
+      </Text>
+      {timeLeft && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+          <Ionicons 
+            name="time-outline" 
+            size={14} 
+            color={isOngoing ? '#EF4444' : colors.primary} 
+          />
+          <Text style={{ 
+            fontFamily: Theme.fontFamily.bold, 
+            fontSize: 13, 
+            color: isOngoing ? '#EF4444' : colors.primary 
+          }}>
+            {timeLeft}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAppAuth();
@@ -83,6 +170,8 @@ export default function DashboardScreen() {
     userId: user?.id ?? "",
   });
 
+  const appointments = useQuery(api.appointments.getPatientAppointments, user?.id ? { userId: user.id } : "skip");
+
   const updateWellness = useMutation(api.wellness.updateProfile);
 
   React.useEffect(() => {
@@ -111,7 +200,7 @@ export default function DashboardScreen() {
     checkTodayCheckIn();
   }, [user?.id, isScreeningComplete]);
 
-  if (appUser === undefined || latestScreening === undefined || latestTriage === undefined) {
+  if (appUser === undefined || latestScreening === undefined || latestTriage === undefined || appointments === undefined) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -320,6 +409,65 @@ export default function DashboardScreen() {
               <Text style={styles.scoreValue}>{reqolScore}</Text>
               <Text style={styles.scoreLabel}>WELL-BEING</Text>
             </View>
+          </View>
+        )}
+
+        {/* Clinical Appointments Section */}
+        {isScreeningComplete && (
+          <View style={styles.appointmentSection}>
+            <Text style={styles.sectionTitle}>Clinical Appointments</Text>
+            {!appointments || appointments.filter((appt: any) => appt.status === "scheduled").length === 0 ? (
+              <View style={styles.appointmentCard}>
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.95)', 'rgba(244, 246, 255, 0.95)'] as any}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.appointmentRow}>
+                  <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
+                  <Text style={{ fontFamily: Theme.fontFamily.medium, fontSize: 14, color: colors.textSecondary, marginLeft: 10 }}>No upcoming appointments</Text>
+                </View>
+              </View>
+            ) : (
+              <View style={{ gap: 12 }}>
+                {appointments.filter((appt: any) => appt.status === "scheduled").map((appt: any) => {
+                  const dateStr = new Date(appt.startTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+                  const timeStr = `${new Date(appt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(appt.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                  return (
+                    <View key={appt._id} style={styles.appointmentCard}>
+                      <LinearGradient
+                        colors={['rgba(255, 255, 255, 0.95)', 'rgba(239, 246, 255, 0.95)'] as any}
+                        style={StyleSheet.absoluteFill}
+                      />
+                      <View style={styles.appointmentRow}>
+                        <View style={[styles.appointmentIconCircle, { backgroundColor: colors.primary + '15' }]}>
+                           <Ionicons name="calendar" size={22} color={colors.primary} />
+                        </View>
+                        <View style={styles.appointmentContent}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={styles.appointmentDate}>{dateStr}</Text>
+                            <View style={styles.liveBadge}>
+                              <Text style={styles.liveBadgeText}>SCHEDULED</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.appointmentTime}>{timeStr}</Text>
+                          
+                          {/* Live Countdown Timer */}
+                          <AppointmentCountdown 
+                            startTime={appt.startTime} 
+                            endTime={appt.endTime} 
+                            colors={colors} 
+                          />
+
+                          {appt.description && (
+                            <Text style={[styles.appointmentDesc, { marginTop: 6 }]} numberOfLines={2}>{appt.description}</Text>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
 
@@ -786,6 +934,77 @@ const stylesFactory = (colors: any) => ({
     gap: 12,
     marginTop: 20,
   } as const,
+  appointmentSection: {
+    marginBottom: Theme.spacing.xl,
+  },
+  appointmentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: Theme.borderRadius.lg,
+    overflow: 'hidden',
+    ...Theme.shadows.tertiary,
+    marginBottom: 10,
+    position: 'relative',
+  } as const,
+  appointmentRow: {
+    flexDirection: 'row',
+    padding: Theme.spacing.lg,
+    alignItems: 'center',
+    gap: 14,
+    zIndex: 1,
+  } as const,
+  appointmentIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  } as const,
+  appointmentContent: {
+    flex: 1,
+  },
+  appointmentDate: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 16,
+    color: colors.text,
+  },
+  appointmentTime: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  appointmentDesc: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
+  liveBadge: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  liveBadgeText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 9,
+    color: '#22C55E',
+    letterSpacing: 0.5,
+  },
+  timerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  } as const,
+  timerBadgeText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 9,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
 });
 
 

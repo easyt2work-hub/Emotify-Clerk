@@ -14,8 +14,17 @@ export const getDashboardOverview = query({
     // For dashboard overview, we count triages
     const triages = await ctx.db.query("triages").collect();
     
-    // Alerts
-    const alerts = await ctx.db.query("alerts").filter(q => q.eq(q.field("status"), "active")).collect();
+    // Alerts - count any unresolved/active alerts (pending or escalated)
+    const alerts = await ctx.db
+      .query("alerts")
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("status"), "pending"),
+          q.eq(q.field("status"), "escalated"),
+          q.eq(q.field("status"), "active")
+        )
+      )
+      .collect();
     
     const severeCases = triages.filter(t => t.level === "severe").length;
     const suicideRisks = triages.filter(t => t.suicideFlag).length;
@@ -69,14 +78,22 @@ export const getActivityFeed = query({
     const microGoals = await ctx.db.query("microGoals").order("desc").take(15);
 
     const feed = [
-      ...alerts.map(a => ({ 
-        id: a._id, 
-        type: 'alert', 
-        title: a.type === 'suicideRisk' ? 'Suicide Risk Detected' : `Alert: ${a.type}`, 
-        desc: `Status: ${a.status}`, 
-        time: a.createdAt, 
-        severity: a.type === 'suicideRisk' || a.type === 'psychosisRisk' ? 'danger' : 'warning' 
-      })),
+      ...alerts.map(a => {
+        const isSuicide = a.type === 'suicideRisk' || a.type === 'suicide';
+        const isPsychosis = a.type === 'psychosisRisk' || a.type === 'psychosis';
+        return { 
+          id: a._id, 
+          type: 'alert', 
+          title: isSuicide 
+            ? 'Suicide Risk Detected' 
+            : isPsychosis 
+            ? 'Psychosis Risk Detected' 
+            : `Alert: ${a.type.charAt(0).toUpperCase() + a.type.slice(1).replace(/_/g, ' ')}`, 
+          desc: `Status: ${a.status}`, 
+          time: a.createdAt, 
+          severity: isSuicide ? 'danger' : isPsychosis ? 'warning' : 'caution' 
+        };
+      }),
       ...emotionLogs.map(e => ({ 
         id: e._id, 
         type: 'emotion', 
