@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/Colors';
+import { useThemeColors } from '@/context/MoodThemeContext';
 import { Theme } from '@/constants/Theme';
 
 interface ProgressBarProps {
@@ -12,21 +12,22 @@ interface ProgressBarProps {
 
 export function ProgressBar({ current, total, label, showFraction = true }: ProgressBarProps) {
   const progress = total > 0 ? (current / total) * 100 : 0;
+  const colors = useThemeColors();
 
   return (
     <View style={styles.container}>
       {(label || showFraction) && (
         <View style={styles.labelRow}>
-          {label && <Text style={styles.label}>{label}</Text>}
+          {label && <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>}
           {showFraction && (
-            <Text style={styles.fraction}>
+            <Text style={[styles.fraction, { color: colors.textMuted }]}>
               {current} / {total}
             </Text>
           )}
         </View>
       )}
       <View style={styles.track}>
-        <View style={[styles.fill, { width: `${Math.min(progress, 100)}%` }]} />
+        <View style={[styles.fill, { width: `${Math.min(progress, 100)}%`, backgroundColor: colors.primary }]} />
       </View>
     </View>
   );
@@ -44,12 +45,10 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: Theme.fontSize.sm,
-    color: Colors.textSecondary,
   },
   fraction: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: Theme.fontSize.sm,
-    color: Colors.textMuted,
   },
   track: {
     height: 6,
@@ -59,7 +58,6 @@ const styles = StyleSheet.create({
   },
   fill: {
     height: '100%',
-    backgroundColor: Colors.primary,
     borderRadius: Theme.borderRadius.full,
   },
 });

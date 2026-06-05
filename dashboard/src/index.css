@@ -122,6 +122,19 @@ a {
   transform: translateY(-1px);
 }
 
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+}
+
+.btn-danger:hover {
+  box-shadow: 0 6px 24px rgba(239, 68, 68, 0.55);
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+
 /* ─── Badges ──────────────────────────────────────────────────── */
 .badge {
   padding: 4px 12px;

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, StyleSheet, ScrollView } from "react-native";
+import { View, Text, TextInput, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAppAuth } from "@/utils/auth";
 import { useMutation } from "convex/react";
@@ -59,8 +60,25 @@ export default function DemographicsScreen() {
     }
   }
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: Colors.background }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: Math.max(20, insets.top),
+            paddingBottom: Math.max(20, insets.bottom + 20),
+          }
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
       <Text style={styles.step}>Step 3 of 3</Text>
       <Text style={styles.title}>Tell us about you</Text>
       <Text style={styles.subtitle}>
@@ -118,7 +136,8 @@ export default function DemographicsScreen() {
         size="lg"
         style={{ marginTop: Theme.spacing.xl }}
       />
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

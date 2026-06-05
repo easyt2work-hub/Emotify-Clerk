@@ -16,8 +16,7 @@ export default defineSchema({
     failedLoginAttempts: v.optional(v.number()),
     lockoutUntil: v.optional(v.number()),
     createdAt: v.optional(v.number()), // For backward compatibility with existing DB records
-
-
+    biometricToken: v.optional(v.string()),
 
     // Existing fields made optional for backward compatibility
     clerkId: v.optional(v.string()),
@@ -37,23 +36,14 @@ export default defineSchema({
     .index("by_clerkId", ["clerkId"])
     .index("by_mobile_number", ["mobile_number"]),
 
-  refreshTokens: defineTable({
+  sessions: defineTable({
     userId: v.id("users"),
     token: v.string(),
-    expiresAt: v.number(),
-  }).index("by_token", ["token"]),
-
-  otps: defineTable({
-    mobile_number: v.string(),
-    code: v.string(),
-    expiresAt: v.number(),
-  }).index("by_mobile_number", ["mobile_number"]),
-
-  authKeys: defineTable({
-    privateKeyJwk: v.string(), // JSON string
-    publicKeyJwk: v.string(), // JSON string
     createdAt: v.number(),
-  }),
+    expiresAt: v.number(),
+  })
+    .index("by_token", ["token"])
+    .index("by_userId", ["userId"]),
 
 
   screenings: defineTable({

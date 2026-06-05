@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import * as SecureStore from "expo-secure-store";
+import * as LocalAuthentication from "expo-local-authentication";
+import { ConvexReactClient } from "convex/react";
+import { api } from "../convex/_generated/api";
 
 interface User {
   id: string;
@@ -7,14 +10,13 @@ interface User {
   mobile_number: string;
   role: string;
   status: string;
-  is_first_login: boolean;
+  is_first_login?: boolean;
   onboardingComplete?: boolean;
   screeningComplete?: boolean;
 }
 
 interface AuthContextType {
   token: string | null;
-  refreshToken: string | null;
   user: User | null;
   isLoading: boolean;
   isLoggingOut: boolean;
@@ -22,85 +24,99 @@ interface AuthContextType {
   login: (mobile_number: string, password: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
   updateUser: (updatedUser: User) => void;
-  fetchAccessToken: (args: { forceRefresh: boolean }) => Promise<string | null>;
+  loginWithBiometrics: () => Promise<{ error?: string }>;
+  biometricsEnabled: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-let activeRefreshPromise: Promise<string | null> | null = null;
-
-const CONVEX_SITE_URL = process.env.EXPO_PUBLIC_CONVEX_SITE_URL || "https://usable-stork-789.convex.site";
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children, convex }: { children: React.ReactNode; convex: ConvexReactClient }) {
   const [token, setToken] = useState<string | null>(null);
-  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
 
-  // Refs always hold the latest values — avoids stale-closure in async fetchAccessToken
   const tokenRef = useRef<string | null>(null);
-  const refreshTokenRef = useRef<string | null>(null);
   const isLoggingOutRef = useRef(false);
 
   // Keep refs in sync with state
   useEffect(() => { tokenRef.current = token; }, [token]);
-  useEffect(() => { refreshTokenRef.current = refreshToken; }, [refreshToken]);
 
   useEffect(() => {
-    async function loadStorage() {
+    async function loadStorageAndValidate() {
       try {
         const savedToken = await SecureStore.getItemAsync("mobile_token");
-        const savedRefreshToken = await SecureStore.getItemAsync("mobile_refresh_token");
         const savedUserStr = await SecureStore.getItemAsync("mobile_user");
+        const isBiometricEnabled = await SecureStore.getItemAsync("biometric_enabled");
+
+        setBiometricsEnabled(isBiometricEnabled === "true");
 
         if (savedToken && savedUserStr) {
-          setToken(savedToken);
-          tokenRef.current = savedToken;
-          if (savedRefreshToken) {
-            setRefreshToken(savedRefreshToken);
-            refreshTokenRef.current = savedRefreshToken;
-          }
-          setUser(JSON.parse(savedUserStr));
-        } else {
-          // Clean up inconsistent storage state
-          if (savedToken || savedRefreshToken || savedUserStr) {
-            await SecureStore.deleteItemAsync("mobile_token").catch(() => { });
-            await SecureStore.deleteItemAsync("mobile_refresh_token").catch(() => { });
-            await SecureStore.deleteItemAsync("mobile_user").catch(() => { });
+          // Validate current session token with Convex backend
+          const validatedUser = await convex.mutation(api.users.validateSession, { token: savedToken });
+          if (validatedUser) {
+            const mappedUser: User = {
+              id: validatedUser.id,
+              full_name: validatedUser.full_name || "",
+              mobile_number: validatedUser.mobile_number || "",
+              role: validatedUser.role || "",
+              status: validatedUser.status || "",
+              is_first_login: validatedUser.is_first_login,
+              onboardingComplete: validatedUser.onboardingComplete,
+              screeningComplete: validatedUser.screeningComplete,
+            };
+            setToken(savedToken);
+            tokenRef.current = savedToken;
+            setUser(mappedUser);
+            await SecureStore.setItemAsync("mobile_user", JSON.stringify(mappedUser));
+          } else {
+            // Invalid/Expired session - clean up local storage
+            await SecureStore.deleteItemAsync("mobile_token").catch(() => {});
+            await SecureStore.deleteItemAsync("mobile_user").catch(() => {});
           }
         }
       } catch (e) {
-        console.error("Failed to load secure store", e);
+        console.error("Failed to load secure store / validate session", e);
       } finally {
         setIsLoading(false);
       }
     }
-    loadStorage();
-  }, []);
+    loadStorageAndValidate();
+  }, [convex]);
 
   const login = async (mobile_number: string, password: string) => {
     try {
-      const res = await fetch(`${CONVEX_SITE_URL}/api/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile_number, password }),
-      });
+      const data = await convex.mutation(api.users.login, { mobile_number, password });
 
-      const data = await res.json();
-      if (!res.ok || data.error) {
+      if (data.error || !data.token || !data.user) {
         return { error: data.error || "Login failed" };
       }
 
+      const mappedUser: User = {
+        id: data.user.id,
+        full_name: data.user.full_name || "",
+        mobile_number: data.user.mobile_number || "",
+        role: data.user.role || "",
+        status: data.user.status || "",
+        is_first_login: data.user.is_first_login,
+        onboardingComplete: data.user.onboardingComplete,
+        screeningComplete: data.user.screeningComplete,
+      };
+
       tokenRef.current = data.token;
-      refreshTokenRef.current = data.refreshToken;
       setToken(data.token);
-      setRefreshToken(data.refreshToken);
-      setUser(data.user);
+      setUser(mappedUser);
 
       await SecureStore.setItemAsync("mobile_token", data.token);
-      await SecureStore.setItemAsync("mobile_refresh_token", data.refreshToken);
-      await SecureStore.setItemAsync("mobile_user", JSON.stringify(data.user));
+      await SecureStore.setItemAsync("mobile_user", JSON.stringify(mappedUser));
+
+      // Enable biometric login automatically (saves silently without triggering prompt on write)
+      if (data.biometricToken) {
+        await SecureStore.setItemAsync("biometric_token", data.biometricToken);
+        await SecureStore.setItemAsync("biometric_enabled", "true");
+        setBiometricsEnabled(true);
+      }
 
       return {};
     } catch (e: any) {
@@ -108,24 +124,82 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const loginWithBiometrics = async () => {
+    try {
+      // 1. Check if biometrics is supported and enrolled
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (!hasHardware || !isEnrolled) {
+        return { error: "Biometrics not configured on this device." };
+      }
+
+      // 2. Prompt user for biometrics
+      const authResult = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Authenticate to login to Emotify",
+        disableDeviceFallback: false,
+      });
+
+      if (!authResult.success) {
+        return { error: "Biometric authentication failed." };
+      }
+
+      // 3. Retrieve the biometric token from secure storage
+      const biometricToken = await SecureStore.getItemAsync("biometric_token");
+
+      if (!biometricToken) {
+        return { error: "No biometric credentials saved. Please log in with password first." };
+      }
+
+      const data = await convex.mutation(api.users.biometricLogin, { biometricToken });
+
+      if (data.error || !data.token || !data.user) {
+        return { error: data.error || "Biometric login failed" };
+      }
+
+      const mappedUser: User = {
+        id: data.user.id,
+        full_name: data.user.full_name || "",
+        mobile_number: data.user.mobile_number || "",
+        role: data.user.role || "",
+        status: data.user.status || "",
+        is_first_login: data.user.is_first_login,
+        onboardingComplete: data.user.onboardingComplete,
+        screeningComplete: data.user.screeningComplete,
+      };
+
+      tokenRef.current = data.token;
+      setToken(data.token);
+      setUser(mappedUser);
+
+      await SecureStore.setItemAsync("mobile_token", data.token);
+      await SecureStore.setItemAsync("mobile_user", JSON.stringify(mappedUser));
+
+      return {};
+    } catch (e: any) {
+      return { error: e.message || "Biometric authentication failed" };
+    }
+  };
+
   const logout = async () => {
-    // Mark logging out FIRST so any concurrent fetchAccessToken returns null
     isLoggingOutRef.current = true;
     setIsLoggingOut(true);
-    // Cancel any in-flight refresh
-    activeRefreshPromise = null;
-    // Immediately clear refs so stale closures can't read old tokens
+    
+    const currentToken = tokenRef.current;
+    
     tokenRef.current = null;
-    refreshTokenRef.current = null;
-    // Clear state
     setToken(null);
-    setRefreshToken(null);
     setUser(null);
-    // Clear storage
+    
     try {
-      await SecureStore.deleteItemAsync("mobile_token");
-      await SecureStore.deleteItemAsync("mobile_refresh_token");
-      await SecureStore.deleteItemAsync("mobile_user");
+      if (currentToken) {
+        await convex.mutation(api.users.logout, { token: currentToken }).catch(() => {});
+      }
+      
+      await Promise.all([
+        SecureStore.deleteItemAsync("mobile_token").catch(() => {}),
+        SecureStore.deleteItemAsync("mobile_user").catch(() => {}),
+      ]);
     } finally {
       isLoggingOutRef.current = false;
       setIsLoggingOut(false);
@@ -137,92 +211,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await SecureStore.setItemAsync("mobile_user", JSON.stringify(updatedUser));
   };
 
-  const fetchAccessToken = async ({ forceRefresh }: { forceRefresh: boolean }): Promise<string | null> => {
-    // If logging out, refuse all token requests immediately
-    if (isLoggingOutRef.current) return null;
-
-    // Read from refs (always current, not stale closures)
-    const currentRefreshToken = refreshTokenRef.current;
-    if (!currentRefreshToken) return null;
-
-    const currentToken = tokenRef.current;
-
-    let isExpired = false;
-    if (currentToken) {
-      try {
-        const payloadBase64 = currentToken.split(".")[1];
-        const base64 = payloadBase64.replace(/-/g, "+").replace(/_/g, "/");
-        const paddedBase64 = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, "=");
-        const decoded = JSON.parse(
-          decodeURIComponent(
-            atob(paddedBase64)
-              .split("")
-              .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-              .join("")
-          )
-        );
-        const now = Math.floor(Date.now() / 1000);
-        if (decoded.exp - 60 < now) {
-          isExpired = true;
-        }
-      } catch (e) {
-        isExpired = true;
-      }
-    } else {
-      isExpired = true;
-    }
-
-    if (isExpired || forceRefresh) {
-      if (activeRefreshPromise) {
-        return activeRefreshPromise;
-      }
-
-      activeRefreshPromise = (async () => {
-        try {
-          // Double-check we're not logging out before making the network call
-          if (isLoggingOutRef.current) return null;
-
-          const res = await fetch(`${CONVEX_SITE_URL}/api/refresh`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refreshToken: currentRefreshToken }),
-          });
-
-          const data = await res.json();
-
-          // If we started logging out while the request was in flight, discard result
-          if (isLoggingOutRef.current) return null;
-
-          if (res.ok && data.token && data.refreshToken) {
-            tokenRef.current = data.token;
-            refreshTokenRef.current = data.refreshToken;
-            setToken(data.token);
-            setRefreshToken(data.refreshToken);
-            await SecureStore.setItemAsync("mobile_token", data.token);
-            await SecureStore.setItemAsync("mobile_refresh_token", data.refreshToken);
-            return data.token;
-          } else {
-            await logout();
-            return null;
-          }
-        } catch (e) {
-          return currentToken; // return stale token on connection error
-        } finally {
-          activeRefreshPromise = null;
-        }
-      })();
-
-      return activeRefreshPromise;
-    }
-
-    return currentToken;
-  };
-
   return (
     <AuthContext.Provider
       value={{
         token,
-        refreshToken,
         user,
         isLoading,
         isLoggingOut,
@@ -230,7 +222,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         logout,
         updateUser,
-        fetchAccessToken,
+        loginWithBiometrics,
+        biometricsEnabled,
       }}
     >
       {children}

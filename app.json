@@ -41,7 +41,8 @@
           "faceIDPermission": "Allow Emotify to use Face ID to unlock the app."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

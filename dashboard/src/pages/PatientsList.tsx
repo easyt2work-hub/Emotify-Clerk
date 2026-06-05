@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Users, UserPlus, Search, Edit2, ShieldAlert, ShieldCheck, BarChart2 } from "lucide-react";
+import { Users, UserPlus, Search, Edit2, ShieldAlert, ShieldCheck, BarChart2, Trash2 } from "lucide-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +13,7 @@ export default function PatientsList() {
   // Custom query fetching patient users from users table
   const patients = useQuery(api.users.listPatients, { search: searchTerm });
   const toggleStatus = useMutation(api.users.toggleUserStatus);
+  const deleteUser = useMutation(api.users.deleteUser);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
@@ -24,6 +25,17 @@ export default function PatientsList() {
         await toggleStatus({ userId, status: nextStatus });
       } catch (err: any) {
         alert(err.message || "Failed to update status.");
+      }
+    }
+  };
+
+  const handleDeleteUser = async (userId: any, fullName?: string) => {
+    const name = fullName || "Unknown User";
+    if (confirm(`Are you sure you want to permanently delete user "${name}"? This will delete all clinical data, logs, and sessions, and cannot be undone.`)) {
+      try {
+        await deleteUser({ userId });
+      } catch (err: any) {
+        alert(err.message || "Failed to delete user.");
       }
     }
   };
@@ -145,6 +157,14 @@ export default function PatientsList() {
                         ) : (
                           <><ShieldCheck size={14} /> Activate</>
                         )}
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteUser(patient._id, patient.full_name)} 
+                        className="btn btn-danger" 
+                        style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        title="Delete user permanently"
+                      >
+                        <Trash2 size={14} /> Delete
                       </button>
                     </div>
                   </td>

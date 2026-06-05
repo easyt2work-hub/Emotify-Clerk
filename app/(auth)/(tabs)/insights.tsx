@@ -1,9 +1,10 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Dimensions } from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Dimensions, ViewStyle, TextStyle } from "react-native";
 import { useAppAuth } from "@/utils/auth";
+//import { useLoadingVideo, usePageLoading } from "@/context/LoadingVideoContext";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Colors } from "@/constants/Colors";
+import { useThemeColors, useStyles } from "@/context/MoodThemeContext";
 import { Theme } from "@/constants/Theme";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -13,15 +14,19 @@ const { width } = Dimensions.get('window');
 
 export default function InsightsScreen() {
   const { user } = useAppAuth();
+  const colors = useThemeColors();
+  const styles = useStyles(stylesFactory);
 
   const stats = useQuery(api.insights.getDailyStats, {
     userId: user?.id ?? "",
   });
 
+  //usePageLoading(stats === undefined);
+
   if (stats === undefined) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -32,32 +37,32 @@ export default function InsightsScreen() {
   const emotionData = rawEmotions.length > 0 ? rawEmotions.map((log: any) => log.preIntensity || 0) : [0];
 
   const chartConfig = {
-    backgroundGradientFrom: Colors.white,
-    backgroundGradientTo: Colors.white,
+    backgroundGradientFrom: colors.white,
+    backgroundGradientTo: colors.white,
     decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(124, 92, 255, ${opacity})`,
-    labelColor: (opacity = 1) => Colors.textMuted,
+    color: (opacity = 1) => `rgba(${parseInt(colors.primary.slice(1, 3), 16)}, ${parseInt(colors.primary.slice(3, 5), 16)}, ${parseInt(colors.primary.slice(5, 7), 16)}, ${opacity})`,
+    labelColor: (opacity = 1) => colors.textMuted,
     strokeWidth: 3,
     propsForDots: {
       r: "4",
       strokeWidth: "2",
-      stroke: Colors.white
+      stroke: colors.white
     },
     propsForBackgroundLines: {
       strokeDasharray: "5, 5",
       stroke: "rgba(0,0,0,0.05)"
     },
-    fillShadowGradient: Colors.primary,
+    fillShadowGradient: colors.primary,
     fillShadowGradientOpacity: 0.1,
   };
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={Colors.backgroundGradient as any}
+        colors={colors.backgroundGradient as any}
         style={StyleSheet.absoluteFill}
       />
-      
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Your Journey</Text>
@@ -67,7 +72,7 @@ export default function InsightsScreen() {
         {/* Highlight Summary */}
         <View>
           <LinearGradient
-            colors={[Colors.primary, Colors.secondary]}
+            colors={[colors.primary, colors.secondary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.summaryCard}
@@ -84,13 +89,13 @@ export default function InsightsScreen() {
               </View>
             </View>
           </LinearGradient>
-          <View style={styles.heroGlow} />
+          <View style={[styles.heroGlow, { backgroundColor: colors.primary }]} />
         </View>
 
         {/* Improvement Banner */}
         <View style={styles.improvementCard}>
-          <View style={styles.improvementIcon}>
-            <Ionicons name="sparkles" size={20} color={Colors.white} />
+          <View style={[styles.improvementIcon, { backgroundColor: colors.success + '15' }]}>
+            <Ionicons name="sparkles" size={20} color={colors.success} />
           </View>
           <Text style={styles.improvementText}>
             You’ve improved this week ✨ Keep taking small steps.
@@ -103,9 +108,9 @@ export default function InsightsScreen() {
           <LineChart
             data={{
               labels: emotionLabels,
-              datasets: [{ 
+              datasets: [{
                 data: emotionData,
-                color: (opacity = 1) => Colors.primary,
+                color: (opacity = 1) => colors.primary,
                 strokeWidth: 4
               }]
             }}
@@ -125,9 +130,9 @@ export default function InsightsScreen() {
         {/* Stats Grid */}
         <Text style={styles.sectionTitle}>Activity Stats</Text>
         <View style={styles.statsGrid}>
-          <StatCard icon="leaf" color="#7C5CFF" value={stats.reframesCount} label="REFRAMES" delay={600} />
-          <StatCard icon="time" color="#00C2FF" value={`${stats.jpmrMinutes}m`} label="RELAXATION" delay={700} />
-          <StatCard icon="heart" color="#FFB6C1" value={stats.totalCheckins} label="CHECK-INS" delay={800} />
+          <StatCard icon="leaf" color={colors.primary} value={stats.reframesCount} label="REFRAMES" styles={styles} />
+          <StatCard icon="time" color={colors.secondary} value={`${stats.jpmrMinutes}m`} label="RELAXATION" styles={styles} />
+          <StatCard icon="heart" color={colors.accent} value={stats.totalCheckins} label="CHECK-INS" styles={styles} />
         </View>
 
         <View style={{ height: 120 }} />
@@ -136,7 +141,7 @@ export default function InsightsScreen() {
   );
 }
 
-function StatCard({ icon, color, value, label, delay }: any) {
+function StatCard({ icon, color, value, label, styles }: any) {
   return (
     <View style={styles.statCard}>
       <View style={[styles.statIconBox, { backgroundColor: color + '15' }]}>
@@ -148,138 +153,130 @@ function StatCard({ icon, color, value, label, delay }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFactory = (colors: any) => ({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
+    backgroundColor: colors.background,
+  } as ViewStyle,
   loadingContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
-  },
+  } as ViewStyle,
   content: {
     padding: Theme.spacing.lg,
     paddingTop: 60,
-  },
+  } as ViewStyle,
   header: {
     marginBottom: Theme.spacing.xl,
-  },
+  } as ViewStyle,
   title: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 28,
-    color: Colors.text,
+    color: colors.text,
     marginBottom: 4,
-  },
+  } as TextStyle,
   subtitle: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: 15,
-    color: Colors.textSecondary,
-  },
+    color: colors.textSecondary,
+  } as TextStyle,
   summaryCard: {
     borderRadius: Theme.borderRadius.xl,
     padding: Theme.spacing.xl,
     marginBottom: Theme.spacing.lg,
     ...Theme.shadows.primary,
     zIndex: 1,
-  },
+  } as ViewStyle,
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-  },
+  } as ViewStyle,
   summaryItem: {
     alignItems: 'center',
-  },
+  } as ViewStyle,
   summaryValue: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 34,
-    color: Colors.white,
+    color: colors.white,
     marginBottom: 2,
-  },
+  } as TextStyle,
   summaryLabel: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 10,
     color: 'rgba(255,255,255,0.7)',
     letterSpacing: 1.5,
-  },
+  } as TextStyle,
   summaryDivider: {
     width: 1,
     height: 40,
     backgroundColor: 'rgba(255,255,255,0.2)',
-  },
+  } as ViewStyle,
   heroGlow: {
     position: 'absolute',
     bottom: 0,
     left: '15%',
     width: '70%',
     height: 30,
-    backgroundColor: Colors.primary,
     opacity: 0.15,
     borderRadius: 40,
-  },
+  } as ViewStyle,
   improvementCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.white,
     padding: Theme.spacing.md,
     borderRadius: Theme.borderRadius.lg,
     marginBottom: Theme.spacing.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.02)',
     ...Theme.shadows.tertiary,
     gap: 12,
-  },
+  } as ViewStyle,
   improvementIcon: {
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: Colors.success + '15',
     justifyContent: 'center',
     alignItems: 'center',
-  },
+  } as ViewStyle,
   improvementText: {
     flex: 1,
     fontFamily: Theme.fontFamily.bold,
     fontSize: 14,
-    color: Colors.text,
-  },
+    color: colors.text,
+  } as TextStyle,
   sectionTitle: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 20,
-    color: Colors.text,
+    color: colors.text,
     marginBottom: Theme.spacing.md,
     marginTop: 8,
-  },
+  } as TextStyle,
   chartCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.white,
     borderRadius: Theme.borderRadius.xl,
     padding: 16,
     paddingRight: 24,
     marginBottom: Theme.spacing.xl,
     ...Theme.shadows.secondary,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.02)',
-  },
+  } as ViewStyle,
   chart: {
     borderRadius: Theme.borderRadius.lg,
     marginLeft: -12,
-  },
+  } as ViewStyle,
   statsGrid: {
     flexDirection: 'row',
     gap: 12,
-  },
+  } as ViewStyle,
   statCard: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.white,
     borderRadius: Theme.borderRadius.lg,
     padding: Theme.spacing.lg,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.02)',
     ...Theme.shadows.tertiary,
-  },
+  } as ViewStyle,
   statIconBox: {
     width: 44,
     height: 44,
@@ -287,18 +284,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
-  },
+  } as ViewStyle,
   statNumber: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 20,
-    color: Colors.text,
-  },
+    color: colors.text,
+  } as TextStyle,
   statLabel: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 9,
-    color: Colors.textMuted,
+    color: colors.textMuted,
     letterSpacing: 1,
     marginTop: 2,
     textTransform: 'uppercase',
-  },
+  } as TextStyle,
 });

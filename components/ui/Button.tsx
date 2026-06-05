@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, ActivityIndicator, ViewStyle, TextStyle, Pressable, Animated } from 'react-native';
+import { StyleSheet, ActivityIndicator, ViewStyle, TextStyle, Pressable, Animated, Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Colors } from '@/constants/Colors';
+import { useThemeColors } from '@/context/MoodThemeContext';
 import { Theme } from '@/constants/Theme';
 
 interface ButtonProps {
@@ -31,6 +31,7 @@ export function Button({
 }: ButtonProps) {
   const isDisabled = disabled || loading;
   const scale = React.useRef(new Animated.Value(1)).current;
+  const colors = useThemeColors();
 
   const handlePressIn = () => {
     Animated.spring(scale, {
@@ -51,6 +52,22 @@ export function Button({
     onPress();
   };
 
+  const dynamicBgStyles = {
+    primary: { backgroundColor: colors.primary },
+    secondary: { backgroundColor: colors.secondary },
+    outline: { backgroundColor: 'transparent', borderColor: colors.primary, borderWidth: 1.5 },
+    ghost: { backgroundColor: 'transparent' },
+    danger: { backgroundColor: colors.error },
+  };
+
+  const dynamicTextStyles = {
+    primary: { color: colors.white },
+    secondary: { color: colors.white },
+    outline: { color: colors.primary },
+    ghost: { color: colors.primary },
+    danger: { color: colors.white },
+  };
+
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
@@ -61,18 +78,18 @@ export function Button({
         testID={testID}
         style={[
           styles.base,
-          styles[variant],
+          dynamicBgStyles[variant],
           styles[`size_${size}`],
           isDisabled && styles.disabled,
           style,
         ]}
       >
         {loading ? (
-          <ActivityIndicator color={variant === 'outline' || variant === 'ghost' ? Colors.primary : Colors.white} />
+          <ActivityIndicator color={variant === 'outline' || variant === 'ghost' ? colors.primary : colors.white} />
         ) : (
           <>
             {icon}
-            <Text style={[styles.text, styles[`text_${variant}`], styles[`textSize_${size}`], textStyle]}>
+            <Text style={[styles.text, dynamicTextStyles[variant], styles[`textSize_${size}`], textStyle]}>
               {title}
             </Text>
           </>
@@ -82,10 +99,6 @@ export function Button({
   );
 }
 
-// Internal Text component to avoid React Native Text import if needed, 
-// but standard Text is fine.
-import { Text } from 'react-native';
-
 const styles = StyleSheet.create({
   base: {
     flexDirection: 'row',
@@ -93,23 +106,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: Theme.borderRadius.xl,
     gap: Theme.spacing.sm,
-  },
-  primary: {
-    backgroundColor: Colors.primary,
-  },
-  secondary: {
-    backgroundColor: Colors.secondary,
-  },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-  },
-  danger: {
-    backgroundColor: Colors.error,
   },
   size_sm: {
     paddingVertical: 10,
@@ -130,11 +126,6 @@ const styles = StyleSheet.create({
     fontFamily: Theme.fontFamily.bold,
     textAlign: 'center',
   },
-  text_primary: { color: Colors.white },
-  text_secondary: { color: Colors.white },
-  text_outline: { color: Colors.primary },
-  text_ghost: { color: Colors.primary },
-  text_danger: { color: Colors.white },
   textSize_sm: { fontSize: Theme.fontSize.sm },
   textSize_md: { fontSize: Theme.fontSize.md },
   textSize_lg: { fontSize: Theme.fontSize.lg },

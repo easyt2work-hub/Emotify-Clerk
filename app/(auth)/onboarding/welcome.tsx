@@ -1,15 +1,41 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Colors } from "@/constants/Colors";
 import { Theme } from "@/constants/Theme";
 import { Button } from "@/components/ui/Button";
+import { useAppAuth } from "@/utils/auth";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { user } = useAppAuth();
+  const dbUser = useQuery(api.users.getByClerkId, user?.id ? { clerkId: user.id } : "skip");
+
+  useEffect(() => {
+    if (dbUser === undefined) return;
+    const hasDemographics = dbUser?.alias && dbUser?.age && dbUser?.campus && dbUser?.department;
+    if (dbUser?.onboardingComplete || hasDemographics) {
+      router.replace("/(auth)/(tabs)");
+    }
+  }, [dbUser]);
+
+  const insets = useSafeAreaInsets();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingTop: Math.max(20, insets.top),
+          paddingBottom: Math.max(20, insets.bottom + 20),
+        }
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.hero}>
         <Text style={styles.emoji}>🌱</Text>
         <Text style={styles.title}>Welcome to Emotify</Text>

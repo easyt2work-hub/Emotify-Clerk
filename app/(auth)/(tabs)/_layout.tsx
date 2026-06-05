@@ -1,5 +1,6 @@
+import React, { useState } from "react";
 import { Tabs, useRouter } from "expo-router";
-import { Colors } from "@/constants/Colors";
+import { useThemeColors } from "@/context/MoodThemeContext";
 import { Theme } from "@/constants/Theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppAuth } from "@/utils/auth";
@@ -8,10 +9,14 @@ import { api } from "@/convex/_generated/api";
 import { View, Text, StyleSheet, Linking, Alert, Platform, TouchableOpacity } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { BlurView } from "expo-blur";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabLayout() {
   const { user, logout } = useAppAuth();
   const router = useRouter();
+  const [dismissedEmergency, setDismissedEmergency] = useState(false);
+  const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
 
   const appUser = useQuery(api.users.getByClerkId, {
     clerkId: user?.id ?? "",
@@ -23,7 +28,7 @@ export default function TabLayout() {
 
   const createAlert = useMutation(api.alerts.createAlert);
 
-  const isEmergency = latestTriage?.level === "suicide_flag";
+  const isEmergency = latestTriage?.level === "suicide_flag" && !dismissedEmergency;
 
   const handleTalkToCounselor = async () => {
     if (!user) return;
@@ -33,10 +38,17 @@ export default function TabLayout() {
 
   if (isEmergency) {
     return (
-      <View style={[styles.container, { padding: Theme.spacing.xl, paddingTop: 80, backgroundColor: Colors.white }]}>
+      <View style={[styles.container, { padding: Theme.spacing.xl, paddingTop: 80, backgroundColor: colors.white }]}>
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={() => setDismissedEmergency(true)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close" size={28} color={colors.textSecondary} />
+        </TouchableOpacity>
         <Text style={{ fontSize: 60, textAlign: 'center', marginBottom: 20 }}>⚠️</Text>
-        <Text style={[styles.emergencyTitle, { color: Colors.error, textAlign: 'center' }]}>Safety Priority</Text>
-        <Text style={[styles.emergencyText, { textAlign: 'center', marginVertical: Theme.spacing.xl, fontSize: 18 }]}>
+        <Text style={[styles.emergencyTitle, { color: colors.error, textAlign: 'center' }]}>Safety Priority</Text>
+        <Text style={[styles.emergencyText, { color: colors.text, textAlign: 'center', marginVertical: Theme.spacing.xl, fontSize: 18 }]}>
           We're concerned for your safety. If you're in danger now, please call emergency services immediately.
         </Text>
         
@@ -62,7 +74,7 @@ export default function TabLayout() {
             size="lg" 
           />
           <View style={{ height: 40 }} />
-          <Text style={{ color: Colors.textSecondary, textAlign: 'center', marginBottom: 10 }}>Or try a grounding exercise:</Text>
+          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 10 }}>Or try a grounding exercise:</Text>
           <Button 
             title="Listen to Relaxation Audio" 
             onPress={() => router.push("/(auth)/tools/jpmr")} 
@@ -79,9 +91,14 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            bottom: insets.bottom > 0 ? insets.bottom + 8 : 20,
+          }
+        ],
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: styles.tabBarLabel,
         tabBarBackground: () => (
           Platform.OS === 'ios' ? (
@@ -164,6 +181,12 @@ const styles = StyleSheet.create({
   },
   emergencyText: {
     fontFamily: Theme.fontFamily.medium,
-    color: Colors.text,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    padding: 8,
+    zIndex: 10,
   }
 });

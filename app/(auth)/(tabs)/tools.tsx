@@ -1,7 +1,8 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, ViewStyle, TextStyle } from "react-native";
 import { useRouter } from "expo-router";
-import { Colors } from "@/constants/Colors";
+import { useThemeColors, useStyles } from "@/context/MoodThemeContext";
+// import { usePageLoading } from "@/context/LoadingVideoContext";
 import { Theme } from "@/constants/Theme";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,6 +12,10 @@ const { width } = Dimensions.get('window');
 export default function ToolsScreen() {
   const router = useRouter();
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const colors = useThemeColors();
+  const styles = useStyles(stylesFactory);
+
+  //usePageLoading(false);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -33,7 +38,7 @@ export default function ToolsScreen() {
       description: "Map your feelings to body regions.",
       emoji: "🗺️",
       route: "/(auth)/tools/emotion-map" as const,
-      color: Colors.primary,
+      color: colors.primary,
     },
     {
       id: "jpmr",
@@ -41,7 +46,7 @@ export default function ToolsScreen() {
       description: "Guided deep physical relaxation.",
       emoji: "🧘",
       route: "/(auth)/tools/jpmr" as const,
-      color: Colors.secondary,
+      color: colors.secondary,
     },
     {
       id: "reframe",
@@ -49,7 +54,7 @@ export default function ToolsScreen() {
       description: "Balance negative thinking patterns.",
       emoji: "🧠",
       route: "/(auth)/tools/reframe" as const,
-      color: Colors.accent,
+      color: colors.accent,
     },
     {
       id: "microgoals",
@@ -57,17 +62,17 @@ export default function ToolsScreen() {
       description: "Daily habits for small wins.",
       emoji: "🎯",
       route: "/(auth)/tools/microgoals" as const,
-      color: "#F59E0B",
+      color: colors.warning,
     },
   ];
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={Colors.backgroundGradient as any}
+        colors={colors.backgroundGradient as any}
         style={StyleSheet.absoluteFill}
       />
-      
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Therapy Hub</Text>
@@ -93,7 +98,7 @@ export default function ToolsScreen() {
                     <Text style={styles.toolDesc}>{tool.description}</Text>
                   </View>
                   <View style={styles.arrowBox}>
-                    <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
                   </View>
                 </Animated.View>
               </TouchableOpacity>
@@ -103,55 +108,53 @@ export default function ToolsScreen() {
 
         {/* Empty State / Bottom Message */}
         <View style={styles.emptyState}>
-          <Ionicons name="leaf-outline" size={48} color={Colors.textMuted} style={{ opacity: 0.5, marginBottom: 16 }} />
+          <Ionicons name="leaf-outline" size={48} color={colors.textMuted} style={{ opacity: 0.5, marginBottom: 16 }} />
           <Text style={styles.emptyText}>Start your first check-in today 🌱</Text>
         </View>
-        
+
         <View style={{ height: 120 }} />
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const stylesFactory = (colors: any) => ({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
+    backgroundColor: colors.background,
+  } as ViewStyle,
   content: {
     padding: Theme.spacing.lg,
     paddingTop: 60,
-  },
+  } as ViewStyle,
   header: {
     marginBottom: Theme.spacing.xl,
-  },
+  } as ViewStyle,
   title: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 28,
-    color: Colors.text,
+    color: colors.text,
     marginBottom: 4,
-  },
+  } as TextStyle,
   subtitle: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: 15,
-    color: Colors.textSecondary,
-  },
+    color: colors.textSecondary,
+  } as TextStyle,
   list: {
     gap: 12,
-  },
+  } as ViewStyle,
   cardWrapper: {
     borderRadius: Theme.borderRadius.xl,
-  },
+  } as ViewStyle,
   glassCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.white,
     borderRadius: Theme.borderRadius.xl,
     padding: Theme.spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.02)',
     ...Theme.shadows.tertiary,
-  },
+  } as ViewStyle,
   iconBox: {
     width: 56,
     height: 56,
@@ -159,28 +162,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.02)',
-  },
+    backgroundColor: colors.white,
+  } as ViewStyle,
   emoji: {
     fontSize: 24,
-  },
+  } as TextStyle,
   textContainer: {
     flex: 1,
-  },
+  } as ViewStyle,
   toolTitle: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 17,
-    color: Colors.text,
+    color: colors.text,
     marginBottom: 2,
-  },
+  } as TextStyle,
   toolDesc: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: 13,
-    color: Colors.textMuted,
+    color: colors.textMuted,
     lineHeight: 18,
-  },
+  } as TextStyle,
   arrowBox: {
     width: 28,
     height: 28,
@@ -189,16 +190,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
-  },
+  } as ViewStyle,
   emptyState: {
     marginTop: 60,
     alignItems: 'center',
     justifyContent: 'center',
-  },
+  } as ViewStyle,
   emptyText: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 16,
-    color: Colors.textMuted,
+    color: colors.textMuted,
     textAlign: 'center',
-  },
+  } as TextStyle,
 });

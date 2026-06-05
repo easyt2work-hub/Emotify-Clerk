@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Colors } from "@/constants/Colors";
 import { Theme } from "@/constants/Theme";
@@ -9,8 +10,20 @@ export default function ConsentScreen() {
   const router = useRouter();
   const [agreed, setAgreed] = useState(false);
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingTop: Math.max(20, insets.top),
+          paddingBottom: Math.max(20, insets.bottom + 20),
+        }
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
       <Text style={styles.step}>Step 1 of 3</Text>
       <Text style={styles.title}>Informed Consent</Text>
       <Text style={styles.subtitle}>

@@ -279,8 +279,6 @@ const styles = StyleSheet.create({
     width: width - Theme.spacing.xl * 2,
     alignItems: 'center',
     marginBottom: Theme.spacing.xxl,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   resultLabel: {
     fontFamily: Theme.fontFamily.medium,

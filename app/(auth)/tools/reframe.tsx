@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Dimensions } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Dimensions, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { useAppAuth } from "@/utils/auth";
 import { useQuery, useMutation } from "convex/react";
@@ -12,7 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { REINFORCEMENT_MESSAGES } from "@/constants/Wellness";
-import { ActivityIndicator } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get('window');
 
@@ -91,16 +91,32 @@ export default function ReframeScreen() {
     </View>
   );
 
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="close" size={24} color={Colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.title}>Cognitive Reframe</Text>
-          <Progress />
-        </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView 
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingTop: Math.max(20, insets.top),
+              paddingBottom: Math.max(20, insets.bottom + 20),
+            }
+          ]} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="close" size={24} color={Colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.title}>Cognitive Reframe</Text>
+            <Progress />
+          </View>
 
         {step === 1 && (
           <View style={styles.stepCard}>
@@ -240,7 +256,8 @@ export default function ReframeScreen() {
             </View>
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

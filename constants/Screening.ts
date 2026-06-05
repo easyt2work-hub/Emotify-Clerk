@@ -149,16 +149,16 @@ export const THINKING_TRAPS = [
 
 // ─── Emotions for Emotion Mapping ───
 export const EMOTIONS = [
-  { id: 'happy', label: '😊 Happy', color: '#FFD93D' },
-  { id: 'sad', label: '😢 Sad', color: '#6C9BCF' },
-  { id: 'anxious', label: '😰 Anxious', color: '#FF8C42' },
-  { id: 'angry', label: '😠 Angry', color: '#FF6B6B' },
-  { id: 'fearful', label: '😨 Fearful', color: '#C084FC' },
-  { id: 'disgusted', label: '🤢 Disgusted', color: '#86EFAC' },
-  { id: 'surprised', label: '😲 Surprised', color: '#FDE68A' },
-  { id: 'calm', label: '😌 Calm', color: '#67E8F9' },
-  { id: 'confused', label: '😕 Confused', color: '#D8B4FE' },
-  { id: 'numb', label: '😶 Numb', color: '#94A3B8' },
+  { id: 'anger', label: '🔴 Anger, passion', color: '#EF4444' },
+  { id: 'excitement', label: '🟠 Excitement, enthusiasm', color: '#F97316' },
+  { id: 'happy', label: '🟡 Happiness, optimism', color: '#EAB308' },
+  { id: 'calm', label: '🟢 Calm, balance, safety', color: '#22C55E' },
+  { id: 'sad', label: '🔵 Sadness, peace', color: '#3B82F6' },
+  { id: 'creative', label: '🟣 Creativity, mystery', color: '#A855F7' },
+  { id: 'love', label: '🩷 Love, compassion', color: '#EC4899' },
+  { id: 'fearful', label: '⚫ Fear, grief', color: '#1E293B' },
+  { id: 'peaceful', label: '⚪ Peace, relief', color: '#F8FAFC' },
+  { id: 'disgusted', label: '🟤 Disgust, discomfort', color: '#78350F' },
 ];
 
 // ─── Body Regions for Emotion Mapping ───

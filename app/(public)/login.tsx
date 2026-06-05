@@ -10,49 +10,37 @@ import {
   Animated,
   Dimensions,
   TouchableOpacity,
+  ScrollView,
 } from "react-native";
 import { useAppAuth } from "@/utils/auth";
 import { useRouter } from "expo-router";
 import { Colors } from "@/constants/Colors";
 import { Theme } from "@/constants/Theme";
-import { Button } from "@/components/ui/Button";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get('window');
 
 export default function LoginScreen() {
-  const { login } = useAppAuth();
+  const { login, loginWithBiometrics, biometricsEnabled } = useAppAuth();
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const scaleAnim = React.useRef(new Animated.Value(1)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 1000,
+      duration: 800,
       useNativeDriver: true,
     }).start();
   }, []);
-
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.98,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-  };
 
   async function handleLogin() {
     if (!phone.trim() || !password.trim()) return;
@@ -72,45 +60,73 @@ export default function LoginScreen() {
     }
   }
 
+  async function handleBiometricLogin() {
+    setBiometricLoading(true);
+    setError("");
+    try {
+      const result = await loginWithBiometrics();
+      if (result && result.error) {
+        setError(result.error);
+      }
+    } catch (err: any) {
+      console.error("Biometric login error:", err);
+      setError("Biometric authentication failed.");
+    } finally {
+      setBiometricLoading(false);
+    }
+  }
+
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={styles.container}>
+      {/* Calm, warm white and soft gradient background */}
       <LinearGradient
-        colors={['#FFFFFF', '#F0F4FF', '#E0E7FF'] as any}
+        colors={['#FAF9F5', '#EBF5FF', '#F3E8FF'] as any}
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Dynamic Background Elements */}
-      <View style={[styles.glowBall, { top: -50, right: -100, backgroundColor: '#7C5CFF', opacity: 0.25 }]} />
-      <View style={[styles.glowBall, { bottom: -100, left: -50, backgroundColor: '#00C2FF', opacity: 0.2 }]} />
-      <View style={[styles.glowBall, { top: '30%', left: -150, width: 300, height: 300, backgroundColor: '#FFB6C1', opacity: 0.15 }]} />
+      {/* Gentle, calm visual elements (soft blobs) */}
+      <View style={[styles.softBlob, { top: -100, right: -100, backgroundColor: '#E0F2FE', opacity: 0.8 }]} />
+      <View style={[styles.softBlob, { bottom: -100, left: -100, backgroundColor: '#E8F0EC', opacity: 0.8 }]} />
+      <View style={[styles.softBlob, { top: '40%', left: -120, width: 250, height: 250, backgroundColor: '#F3E8FF', opacity: 0.6 }]} />
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-          <View style={styles.hero}>
-            <View style={styles.logoWrapper}>
-              <LinearGradient
-                colors={[Colors.primary, Colors.secondary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.logoCircle}
-              >
-                <Ionicons name="leaf" size={44} color={Colors.white} />
-              </LinearGradient>
-              <View style={styles.logoRing} />
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: Math.max(40, insets.top),
+              paddingBottom: Math.max(40, insets.bottom + 20),
+            }
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+            <View style={styles.hero}>
+              <View style={styles.logoWrapper}>
+                <LinearGradient
+                  colors={['#A7F3D0', '#93C5FD'] as any} // Calm Sage and Soft Blue
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.logoCircle}
+                >
+                  <Ionicons name="leaf-outline" size={40} color="#1E293B" />
+                </LinearGradient>
+              </View>
+              <Text style={styles.title}>Welcome to Emotify</Text>
+              <Text style={styles.subtitle}>A peaceful space for your mind.</Text>
             </View>
-            <Text style={styles.title}>Emotify</Text>
-            <Text style={styles.subtitle}>Your path to tranquility begins with a single step.</Text>
-          </View>
 
-          <View style={styles.glassCard}>
-            <Text style={styles.cardLabel}>SECURE ACCESS</Text>
+            <View style={styles.card}>
+              <Text style={styles.cardHeader}>Sign In</Text>
 
-            <View style={styles.inputWrapper}>
               <View style={styles.inputBox}>
-                <Ionicons name="call" size={20} color={Colors.primary} style={styles.inputIcon} />
+                <Ionicons name="call-outline" size={20} color="#64748B" style={styles.inputIcon} />
                 <TextInput
                   style={styles.textInput}
                   value={phone}
@@ -121,64 +137,76 @@ export default function LoginScreen() {
                   maxLength={10}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  selectionColor={Colors.primary}
                 />
               </View>
-            </View>
 
-            <View style={[styles.inputWrapper, { marginTop: -8 }]}>
               <View style={styles.inputBox}>
-                <Ionicons name="lock-closed" size={20} color={Colors.primary} style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={20} color="#64748B" style={styles.inputIcon} />
                 <TextInput
                   style={styles.textInput}
                   value={password}
                   onChangeText={setPassword}
                   placeholder="Password"
                   placeholderTextColor="#94A3B8"
-                  secureTextEntry
+                  secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  selectionColor={Colors.primary}
                 />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                  <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#64748B" />
+                </TouchableOpacity>
               </View>
+
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                style={[styles.primaryButton, (!phone.trim() || !password.trim()) && styles.disabledButton]}
+                onPress={handleLogin}
+                disabled={loading || !phone.trim() || !password.trim()}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FAF9F5" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Sign In</Text>
+                )}
+              </TouchableOpacity>
+
+              {biometricsEnabled ? (
+                <>
+                  <View style={styles.divider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>or</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.biometricButton}
+                    onPress={handleBiometricLogin}
+                    disabled={biometricLoading}
+                  >
+                    {biometricLoading ? (
+                      <ActivityIndicator color="#1E293B" />
+                    ) : (
+                      <>
+                        <Ionicons name="finger-print-outline" size={24} color="#1E293B" />
+                        <Text style={styles.biometricButtonText}>Login with Biometrics</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              ) : null}
             </View>
 
-            {error ? <View style={styles.errorContainer}><Text style={styles.errorText}>{error}</Text></View> : null}
-
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-              onPress={handleLogin}
-              disabled={loading || !phone.trim() || !password.trim()}
-            >
-              <Animated.View style={[styles.buttonContainer, { transform: [{ scale: scaleAnim }] }]}>
-                <LinearGradient
-                  colors={[Colors.primary, Colors.secondary]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.gradientButton}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={Colors.white} />
-                  ) : (
-                    <>
-                      <Text style={styles.buttonText}>Sign In</Text>
-                      <Ionicons name="arrow-forward" size={18} color={Colors.white} />
-                    </>
-                  )}
-                </LinearGradient>
-              </Animated.View>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.footerInfo}>
-            <Ionicons name="shield-checkmark" size={14} color={Colors.textMuted} />
-            <Text style={styles.footerText}>
-              Powered by Secure DB Authentication
-            </Text>
-          </View>
-        </Animated.View>
+            <View style={styles.footer}>
+              <Ionicons name="shield-checkmark-outline" size={14} color="#94A3B8" />
+              <Text style={styles.footerText}>Secure Biometric & JWT Authentication</Text>
+            </View>
+          </Animated.View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -188,146 +216,168 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  glowBall: {
+  softBlob: {
     position: 'absolute',
-    width: 450,
-    height: 450,
-    borderRadius: 225,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
     zIndex: 0,
   },
   keyboardView: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: 28,
   },
+  content: {
+    justifyContent: "center",
+  },
   hero: {
     alignItems: "center",
-    marginBottom: 48,
+    marginBottom: 32,
   },
   logoWrapper: {
-    position: 'relative',
-    marginBottom: 28,
+    marginBottom: 16,
   },
   logoCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 2,
-    ...Theme.shadows.primary,
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.8)',
-  },
-  logoRing: {
-    position: 'absolute',
-    top: -8,
-    left: -8,
-    right: -8,
-    bottom: -8,
-    borderRadius: 60,
-    borderWidth: 1,
-    borderColor: Colors.primary + '30',
-    opacity: 0.5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   title: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 38,
-    color: '#1E293B',
-    marginBottom: 8,
-    letterSpacing: -1,
+    fontSize: 28,
+    color: '#0F172A',
+    marginBottom: 6,
   },
   subtitle: {
     fontFamily: Theme.fontFamily.medium,
-    fontSize: 17,
-    color: '#64748B',
+    fontSize: 16,
+    color: '#475569',
     textAlign: 'center',
-    maxWidth: '85%',
-    lineHeight: 24,
   },
-  glassCard: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    padding: 28,
-    borderRadius: 36,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.8)',
-    ...Theme.shadows.primary,
-    marginBottom: 40,
+  card: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.04,
+    shadowRadius: 16,
+    elevation: 4,
   },
-  cardLabel: {
+  cardHeader: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 12,
-    color: Colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 2,
+    fontSize: 18,
+    color: '#1E293B',
     marginBottom: 20,
     textAlign: 'center',
-  },
-  inputWrapper: {
-    marginBottom: 24,
+    letterSpacing: 0.5,
   },
   inputBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 18,
-    height: 64,
-    ...Theme.shadows.tertiary,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 56,
+    marginBottom: 16,
   },
   inputIcon: {
-    marginRight: 14,
-    opacity: 0.8,
+    marginRight: 12,
   },
   textInput: {
     flex: 1,
     fontFamily: Theme.fontFamily.medium,
-    fontSize: 17,
+    fontSize: 16,
     color: '#0F172A',
   },
-  errorContainer: {
-    marginBottom: 16,
-    backgroundColor: Colors.error + '10',
+  eyeIcon: {
+    padding: 4,
+  },
+  errorBox: {
+    backgroundColor: '#FEF2F2',
     padding: 12,
     borderRadius: 12,
+    marginBottom: 16,
   },
   errorText: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: 13,
-    color: Colors.error,
+    color: '#EF4444',
     textAlign: 'center',
   },
-  buttonContainer: {
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  gradientButton: {
-    height: 64,
-    flexDirection: 'row',
+  primaryButton: {
+    backgroundColor: '#93C5FD', // Calm Soft Blue
+    height: 56,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  buttonText: {
+  disabledButton: {
+    backgroundColor: '#CBD5E1',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  primaryButtonText: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 18,
-    color: Colors.white,
-    letterSpacing: 0.5,
+    fontSize: 16,
+    color: '#FAF9F5',
   },
-  footerInfo: {
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  dividerText: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 14,
+    color: '#94A3B8',
+    paddingHorizontal: 12,
+  },
+  biometricButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    height: 56,
+    borderRadius: 14,
     gap: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  biometricButtonText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 16,
+    color: '#1E293B',
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 24,
   },
   footerText: {
     fontFamily: Theme.fontFamily.medium,
-    fontSize: 13,
+    fontSize: 12,
     color: '#94A3B8',
   },
 });

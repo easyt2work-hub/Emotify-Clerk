@@ -101,25 +101,38 @@ export default function ScreeningScreen() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load persisted progress on mount
+  // Load persisted progress on mount/user change
   useEffect(() => {
     async function loadProgress() {
+      if (!user?.id) return;
       try {
-        const saved = await SecureStore.getItemAsync(SCREENING_STORE_KEY);
+        const key = `${SCREENING_STORE_KEY}_${user.id}`;
+        const saved = await SecureStore.getItemAsync(key);
         if (saved) {
           const parsed = JSON.parse(saved) as ScreeningState;
           setAnswers(parsed);
+        } else {
+          // Reset answers to default if no draft saved for this user
+          setAnswers({
+            phq9: new Array(PHQ9_QUESTIONS.length).fill(null),
+            gad7: new Array(GAD7_QUESTIONS.length).fill(null),
+            pq16: new Array(PQ16_QUESTIONS.length).fill(null),
+            wsas: new Array(WSAS_QUESTIONS.length).fill(null),
+            reqol10: new Array(REQOL10_QUESTIONS.length).fill(null),
+          });
         }
       } catch (e) {
         console.warn("[Screening] Failed to load persisted progress:", e);
       }
     }
     loadProgress();
-  }, []);
+  }, [user?.id]);
 
   async function persistAnswers(nextAnswers: ScreeningState) {
+    if (!user?.id) return;
     try {
-      await SecureStore.setItemAsync(SCREENING_STORE_KEY, JSON.stringify(nextAnswers));
+      const key = `${SCREENING_STORE_KEY}_${user.id}`;
+      await SecureStore.setItemAsync(key, JSON.stringify(nextAnswers));
     } catch (e) {
       console.warn("[Screening] Failed to persist answers:", e);
     }
@@ -186,7 +199,8 @@ export default function ScreeningScreen() {
 
       // Delete cached progress
       try {
-        await SecureStore.deleteItemAsync(SCREENING_STORE_KEY);
+        const key = `${SCREENING_STORE_KEY}_${user.id}`;
+        await SecureStore.deleteItemAsync(key);
       } catch (e) {}
 
       // Go to app
@@ -368,19 +382,15 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: '#FFFFFF',
     borderRadius: Theme.borderRadius.xl,
     padding: Theme.spacing.xl,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
     ...Theme.shadows.tertiary,
   },
   cardFinished: {
-    borderColor: '#10B981' + '40',
     backgroundColor: '#F0FDF4',
   },
   cardInProgress: {
-    borderColor: Colors.primary + '40',
     backgroundColor: Colors.primary + '05',
   },
   cardHeader: {

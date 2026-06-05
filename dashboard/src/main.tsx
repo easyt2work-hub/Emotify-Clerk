@@ -14,10 +14,8 @@ if (!CONVEX_URL) {
 const convex = new ConvexReactClient(CONVEX_URL)
 
 function ConvexAuthWrapper({ children }: { children: React.ReactNode }) {
-  const useAuth = useConvexAuth();
-
   return (
-    <ConvexProviderWithAuth client={convex} useAuth={useAuth}>
+    <ConvexProviderWithAuth client={convex} useAuth={useConvexAuth}>
       {children}
     </ConvexProviderWithAuth>
   );
@@ -25,7 +23,7 @@ function ConvexAuthWrapper({ children }: { children: React.ReactNode }) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AuthProvider>
+    <AuthProvider convex={convex}>
       <ConvexAuthWrapper>
         <App />
       </ConvexAuthWrapper>

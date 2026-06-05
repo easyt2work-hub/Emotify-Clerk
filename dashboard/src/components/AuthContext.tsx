@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { ConvexReactClient } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 interface User {
   id: string;
@@ -6,30 +8,21 @@ interface User {
   mobile_number: string;
   role: string;
   status: string;
-  is_first_login: boolean;
+  is_first_login?: boolean;
 }
 
 interface AuthContextType {
   token: string | null;
-  refreshToken: string | null;
   user: User | null;
   isLoading: boolean;
   login: (mobile_number: string, password: string) => Promise<{ error?: string }>;
   logout: () => void;
-  isLoadingConvex: boolean;
-  isAuthenticatedConvex: boolean;
-  fetchAccessToken: (args: { forceRefresh: boolean }) => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-let activeRefreshPromise: Promise<string | null> | null = null;
-
-const CONVEX_SITE_URL = (import.meta as any).env?.VITE_CONVEX_SITE_URL || "https://usable-stork-789.convex.site";
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children, convex }: { children: React.ReactNode; convex: ConvexReactClient }) {
   const [token, setToken] = useState<string | null>(localStorage.getItem("dashboard_token"));
-  const [refreshToken, setRefreshToken] = useState<string | null>(localStorage.getItem("dashboard_refresh_token"));
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem("dashboard_user");
     return saved ? JSON.parse(saved) : null;
@@ -37,20 +30,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Initial validation / loading complete
-    setIsLoading(false);
-  }, []);
+    async function loadStorageAndValidate() {
+      try {
+        const savedToken = localStorage.getItem("dashboard_token");
+        const savedUserStr = localStorage.getItem("dashboard_user");
+
+        if (savedToken && savedUserStr) {
+          const validatedUser = await convex.mutation(api.users.validateSession, { token: savedToken });
+          if (validatedUser) {
+            const mappedUser: User = {
+              id: validatedUser.id,
+              full_name: validatedUser.full_name || "",
+              mobile_number: validatedUser.mobile_number || "",
+              role: validatedUser.role || "",
+              status: validatedUser.status || "",
+              is_first_login: validatedUser.is_first_login || false,
+            };
+            setToken(savedToken);
+            setUser(mappedUser);
+            localStorage.setItem("dashboard_user", JSON.stringify(mappedUser));
+          } else {
+            // Invalid/Expired session - clean up local storage
+            setToken(null);
+            setUser(null);
+            localStorage.removeItem("dashboard_token");
+            localStorage.removeItem("dashboard_user");
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load storage / validate session", e);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadStorageAndValidate();
+  }, [convex]);
 
   const login = async (mobile_number: string, password: string) => {
     try {
-      const res = await fetch(`${CONVEX_SITE_URL}/api/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile_number, password }),
-      });
+      const data = await convex.mutation(api.users.login, { mobile_number, password });
 
-      const data = await res.json();
-      if (!res.ok || data.error) {
+      if (data.error || !data.token || !data.user) {
         return { error: data.error || "Login failed" };
       }
 
@@ -58,13 +78,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: "Access denied. Admin access only." };
       }
 
+      const mappedUser: User = {
+        id: data.user.id,
+        full_name: data.user.full_name || "",
+        mobile_number: data.user.mobile_number || "",
+        role: data.user.role || "",
+        status: data.user.status || "",
+        is_first_login: data.user.is_first_login || false,
+      };
+
       setToken(data.token);
-      setRefreshToken(data.refreshToken);
-      setUser(data.user);
+      setUser(mappedUser);
 
       localStorage.setItem("dashboard_token", data.token);
-      localStorage.setItem("dashboard_refresh_token", data.refreshToken);
-      localStorage.setItem("dashboard_user", JSON.stringify(data.user));
+      localStorage.setItem("dashboard_user", JSON.stringify(mappedUser));
 
       return {};
     } catch (e: any) {
@@ -73,100 +100,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    const currentToken = token || localStorage.getItem("dashboard_token");
     setToken(null);
-    setRefreshToken(null);
     setUser(null);
     localStorage.removeItem("dashboard_token");
-    localStorage.removeItem("dashboard_refresh_token");
     localStorage.removeItem("dashboard_user");
-  };
-
-  // Convex-compatible useAuth implementation
-  const fetchAccessToken = async ({ forceRefresh }: { forceRefresh: boolean }): Promise<string | null> => {
-    const currentRefreshToken = refreshToken || localStorage.getItem("dashboard_refresh_token");
-    if (!currentRefreshToken) return null;
-
-    const currentToken = token || localStorage.getItem("dashboard_token");
-
-    // Decode current token to check expiration (in seconds)
-    let isExpired = false;
-    if (currentToken && currentToken.split(".").length === 3) {
-      try {
-        const payloadBase64 = currentToken.split(".")[1];
-        // Apply proper base64 padding to prevent browser atob error
-        const base64 = payloadBase64.replace(/-/g, "+").replace(/_/g, "/");
-        const paddedBase64 = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, "=");
-        
-        const decoded = JSON.parse(
-          decodeURIComponent(
-            atob(paddedBase64)
-              .split("")
-              .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-              .join("")
-          )
-        );
-        const now = Math.floor(Date.now() / 1000);
-        // Refresh 1 minute before actual expiry
-        if (decoded.exp - 60 < now) {
-          isExpired = true;
-        }
-      } catch (e) {
-        isExpired = true;
-      }
-    } else {
-      isExpired = true;
+    if (currentToken) {
+      convex.mutation(api.users.logout, { token: currentToken }).catch(() => {});
     }
-
-    if (isExpired || forceRefresh) {
-      if (activeRefreshPromise) {
-        return activeRefreshPromise;
-      }
-
-      activeRefreshPromise = (async () => {
-        try {
-          const res = await fetch(`${CONVEX_SITE_URL}/api/refresh`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refreshToken: currentRefreshToken }),
-          });
-
-          const data = await res.json();
-          if (res.ok && data.token && data.refreshToken) {
-            setToken(data.token);
-            setRefreshToken(data.refreshToken);
-            localStorage.setItem("dashboard_token", data.token);
-            localStorage.setItem("dashboard_refresh_token", data.refreshToken);
-            return data.token;
-          } else {
-            // Refresh token expired or rotated, log out
-            logout();
-            return null;
-          }
-        } catch (e) {
-          return currentToken; // fallback to existing token if network fails
-        } finally {
-          activeRefreshPromise = null;
-        }
-      })();
-
-      return activeRefreshPromise;
-    }
-
-    return currentToken;
   };
 
   return (
     <AuthContext.Provider
       value={{
         token,
-        refreshToken,
         user,
         isLoading,
         login,
         logout,
-        isLoadingConvex: isLoading,
-        isAuthenticatedConvex: !!token,
-        fetchAccessToken,
       }}
     >
       {children}
@@ -183,20 +134,15 @@ export function useDashboardAuth() {
 }
 
 export function useConvexAuth() {
-  const { isLoadingConvex, isAuthenticatedConvex, fetchAccessToken } = useDashboardAuth();
+  const { isLoading, token } = useDashboardAuth();
   
-  const fetchToken = React.useCallback(
-    async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
-      return fetchAccessToken({ forceRefresh: forceRefreshToken });
-    },
-    [fetchAccessToken]
-  );
+  const fetchAccessToken = React.useCallback(async () => {
+    return token;
+  }, [token]);
 
-  return React.useCallback(() => {
-    return {
-      isLoading: isLoadingConvex,
-      isAuthenticated: isAuthenticatedConvex,
-      fetchAccessToken: fetchToken,
-    };
-  }, [isLoadingConvex, isAuthenticatedConvex, fetchToken]);
+  return React.useMemo(() => ({
+    isLoading,
+    isAuthenticated: !!token,
+    fetchAccessToken,
+  }), [isLoading, token, fetchAccessToken]);
 }
