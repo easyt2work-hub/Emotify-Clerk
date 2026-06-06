@@ -17,6 +17,32 @@ interface ButtonProps {
   testID?: string;
 }
 
+function splitStyles(style: any) {
+  if (!style) return { layoutStyles: {}, buttonStyles: {} };
+  const flattened = StyleSheet.flatten(style);
+  if (!flattened) return { layoutStyles: {}, buttonStyles: {} };
+  
+  const layoutKeys = [
+    'flex', 'flexDirection', 'justifyContent', 'alignItems', 'alignSelf',
+    'alignContent', 'flexWrap', 'flexGrow', 'flexShrink', 'flexBasis',
+    'margin', 'marginBottom', 'marginTop', 'marginLeft', 'marginRight',
+    'marginHorizontal', 'marginVertical', 'position', 'top', 'bottom',
+    'left', 'right', 'zIndex', 'width', 'height', 'minWidth', 'minHeight',
+    'maxWidth', 'maxHeight', 'aspectRatio'
+  ];
+  const layoutStyles: any = {};
+  const buttonStyles: any = {};
+  
+  Object.keys(flattened).forEach((key) => {
+    if (layoutKeys.includes(key)) {
+      layoutStyles[key] = flattened[key];
+    } else {
+      buttonStyles[key] = flattened[key];
+    }
+  });
+  return { layoutStyles, buttonStyles };
+}
+
 export function Button({
   title,
   onPress,
@@ -68,8 +94,11 @@ export function Button({
     danger: { color: colors.white },
   };
 
+  const { layoutStyles, buttonStyles } = splitStyles(style);
+  const isWidthOrFlexSet = layoutStyles.flex !== undefined || layoutStyles.width !== undefined || layoutStyles.alignSelf === 'stretch';
+
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={[{ transform: [{ scale }] }, layoutStyles]}>
       <Pressable
         onPress={handlePress}
         onPressIn={handlePressIn}
@@ -81,7 +110,9 @@ export function Button({
           dynamicBgStyles[variant],
           styles[`size_${size}`],
           isDisabled && styles.disabled,
-          style,
+          buttonStyles,
+          isWidthOrFlexSet && { width: '100%' },
+          layoutStyles.height !== undefined && { height: '100%' },
         ]}
       >
         {loading ? (

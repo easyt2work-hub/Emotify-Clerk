@@ -82,27 +82,22 @@ function AppointmentCountdown({
     return () => clearInterval(timer);
   }, [startTime, endTime]);
 
+  if (!timeLeft) return null;
+
   return (
-    <View style={{ marginTop: 4 }}>
-      <Text style={{ fontSize: 11, color: '#EF4444', fontFamily: Theme.fontFamily.medium }}>
-        Debug: now={Date.now()} start={startTime} end={endTime} left={String(timeLeft)}
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+      <Ionicons 
+        name="time-outline" 
+        size={14} 
+        color={isOngoing ? '#EF4444' : colors.primary} 
+      />
+      <Text style={{ 
+        fontFamily: Theme.fontFamily.bold, 
+        fontSize: 13, 
+        color: isOngoing ? '#EF4444' : colors.primary 
+      }}>
+        {timeLeft}
       </Text>
-      {timeLeft && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-          <Ionicons 
-            name="time-outline" 
-            size={14} 
-            color={isOngoing ? '#EF4444' : colors.primary} 
-          />
-          <Text style={{ 
-            fontFamily: Theme.fontFamily.bold, 
-            fontSize: 13, 
-            color: isOngoing ? '#EF4444' : colors.primary 
-          }}>
-            {timeLeft}
-          </Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -416,58 +411,92 @@ export default function DashboardScreen() {
         {isScreeningComplete && (
           <View style={styles.appointmentSection}>
             <Text style={styles.sectionTitle}>Clinical Appointments</Text>
-            {!appointments || appointments.filter((appt: any) => appt.status === "scheduled").length === 0 ? (
-              <View style={styles.appointmentCard}>
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.95)', 'rgba(244, 246, 255, 0.95)'] as any}
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={styles.appointmentRow}>
-                  <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
-                  <Text style={{ fontFamily: Theme.fontFamily.medium, fontSize: 14, color: colors.textSecondary, marginLeft: 10 }}>No upcoming appointments</Text>
-                </View>
-              </View>
-            ) : (
-              <View style={{ gap: 12 }}>
-                {appointments.filter((appt: any) => appt.status === "scheduled").map((appt: any) => {
-                  const dateStr = new Date(appt.startTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-                  const timeStr = `${new Date(appt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(appt.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-                  return (
-                    <View key={appt._id} style={styles.appointmentCard}>
-                      <LinearGradient
-                        colors={['rgba(255, 255, 255, 0.95)', 'rgba(239, 246, 255, 0.95)'] as any}
-                        style={StyleSheet.absoluteFill}
-                      />
-                      <View style={styles.appointmentRow}>
-                        <View style={[styles.appointmentIconCircle, { backgroundColor: colors.primary + '15' }]}>
-                           <Ionicons name="calendar" size={22} color={colors.primary} />
-                        </View>
-                        <View style={styles.appointmentContent}>
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Text style={styles.appointmentDate}>{dateStr}</Text>
-                            <View style={styles.liveBadge}>
-                              <Text style={styles.liveBadgeText}>SCHEDULED</Text>
-                            </View>
-                          </View>
-                          <Text style={styles.appointmentTime}>{timeStr}</Text>
-                          
-                          {/* Live Countdown Timer */}
-                          <AppointmentCountdown 
-                            startTime={appt.startTime} 
-                            endTime={appt.endTime} 
-                            colors={colors} 
-                          />
+            {(() => {
+              const now = Date.now();
+              const activeAppts = appointments?.filter((appt: any) => appt.status === "scheduled" && appt.endTime > now) || [];
+              if (activeAppts.length === 0) {
+                return (
+                  <View style={styles.appointmentCard}>
+                    <LinearGradient
+                      colors={['rgba(255, 255, 255, 0.95)', 'rgba(244, 246, 255, 0.95)'] as any}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <View style={styles.appointmentRow}>
+                      <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
+                      <Text style={{ fontFamily: Theme.fontFamily.medium, fontSize: 14, color: colors.textSecondary, marginLeft: 10 }}>No upcoming appointments</Text>
+                    </View>
+                  </View>
+                );
+              }
 
-                          {appt.description && (
-                            <Text style={[styles.appointmentDesc, { marginTop: 6 }]} numberOfLines={2}>{appt.description}</Text>
-                          )}
+              return (
+                <View style={{ gap: 12 }}>
+                  {activeAppts.map((appt: any) => {
+                    const isOngoing = now >= appt.startTime && now <= appt.endTime;
+                    const dateStr = new Date(appt.startTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+                    const timeStr = `${new Date(appt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(appt.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                    return (
+                      <View 
+                        key={appt._id} 
+                        style={[
+                          styles.appointmentCard,
+                          isOngoing && { borderColor: colors.error + '40', borderWidth: 1 }
+                        ]}
+                      >
+                        <LinearGradient
+                          colors={
+                            isOngoing
+                              ? ['rgba(255, 242, 242, 0.95)', 'rgba(254, 226, 226, 0.95)'] as any
+                              : ['rgba(255, 255, 255, 0.95)', 'rgba(239, 246, 255, 0.95)'] as any
+                          }
+                          style={StyleSheet.absoluteFill}
+                        />
+                        <View style={styles.appointmentRow}>
+                          <View style={[
+                            styles.appointmentIconCircle, 
+                            { backgroundColor: isOngoing ? colors.error + '15' : colors.primary + '15' }
+                          ]}>
+                             <Ionicons 
+                               name={isOngoing ? "videocam" : "calendar"} 
+                               size={22} 
+                               color={isOngoing ? colors.error : colors.primary} 
+                             />
+                          </View>
+                          <View style={styles.appointmentContent}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Text style={styles.appointmentDate}>{dateStr}</Text>
+                              <View style={[
+                                styles.liveBadge,
+                                isOngoing && { backgroundColor: 'rgba(239, 68, 68, 0.1)' }
+                              ]}>
+                                <Text style={[
+                                  styles.liveBadgeText,
+                                  isOngoing && { color: '#EF4444' }
+                                ]}>
+                                  {isOngoing ? 'LIVE NOW' : 'SCHEDULED'}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text style={styles.appointmentTime}>{timeStr}</Text>
+                            
+                            {/* Live Countdown Timer */}
+                            <AppointmentCountdown 
+                              startTime={appt.startTime} 
+                              endTime={appt.endTime} 
+                              colors={colors} 
+                            />
+
+                            {appt.description && (
+                              <Text style={[styles.appointmentDesc, { marginTop: 6 }]} numberOfLines={2}>{appt.description}</Text>
+                            )}
+                          </View>
                         </View>
                       </View>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+                    );
+                  })}
+                </View>
+              );
+            })()}
           </View>
         )}
 
