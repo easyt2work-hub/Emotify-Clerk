@@ -1,0 +1,65 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useDashboardAuth } from './components/AuthContext';
+import DashboardLayout from './layouts/DashboardLayout';
+import Overview from './pages/Overview';
+import PatientsList from './pages/PatientsList';
+import PatientDetail from './pages/PatientDetail';
+import AlertsCenter from './pages/AlertsCenter';
+import Sessions from './pages/Sessions';
+import Login from './pages/Login';
+import React from 'react';
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { token, isLoading } = useDashboardAuth();
+
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        minHeight: '100vh',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white',
+        background: '#0B0F19',
+        fontSize: '1.2rem',
+        fontWeight: 500
+      }}>
+        Initializing console...
+      </div>
+    );
+  }
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <Routes>
+                <Route path="/" element={<DashboardLayout />}>
+                  <Route index element={<Overview />} />
+                  <Route path="patients" element={<PatientsList />} />
+                  <Route path="patients/:id" element={<PatientDetail />} />
+                  <Route path="alerts" element={<AlertsCenter />} />
+                  <Route path="sessions" element={<Sessions />} />
+                </Route>
+              </Routes>
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
