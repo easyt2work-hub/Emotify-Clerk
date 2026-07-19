@@ -2,23 +2,27 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 
 export const generatePositiveMessage = query({
-  args: { userId: v.string() },
+  args: { userId: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const userId = identity.subject;
+
     const microGoals = await ctx.db
       .query("microGoals")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
       .take(5);
 
     const emotionLogs = await ctx.db
       .query("emotionLogs")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
       .take(3);
 
     const jpmrLogs = await ctx.db
       .query("jpmrLogs")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
       .take(1);
 

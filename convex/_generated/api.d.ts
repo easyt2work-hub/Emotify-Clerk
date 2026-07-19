@@ -10,7 +10,10 @@
 
 import type * as alerts from "../alerts.js";
 import type * as appointments from "../appointments.js";
+import type * as audit from "../audit.js";
 import type * as authHelpers from "../authHelpers.js";
+import type * as cbt from "../cbt.js";
+import type * as companion from "../companion.js";
 import type * as counsellorRequests from "../counsellorRequests.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
@@ -22,6 +25,7 @@ import type * as insights from "../insights.js";
 import type * as jpmrLogs from "../jpmrLogs.js";
 import type * as microGoals from "../microGoals.js";
 import type * as patients from "../patients.js";
+import type * as rateLimiter from "../rateLimiter.js";
 import type * as reframes from "../reframes.js";
 import type * as reinforcement from "../reinforcement.js";
 import type * as screening from "../screening.js";
@@ -38,7 +42,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   alerts: typeof alerts;
   appointments: typeof appointments;
+  audit: typeof audit;
   authHelpers: typeof authHelpers;
+  cbt: typeof cbt;
+  companion: typeof companion;
   counsellorRequests: typeof counsellorRequests;
   crons: typeof crons;
   dashboard: typeof dashboard;
@@ -50,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   jpmrLogs: typeof jpmrLogs;
   microGoals: typeof microGoals;
   patients: typeof patients;
+  rateLimiter: typeof rateLimiter;
   reframes: typeof reframes;
   reinforcement: typeof reinforcement;
   screening: typeof screening;

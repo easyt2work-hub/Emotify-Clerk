@@ -1,43 +1,54 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { checkRateLimit } from "./rateLimiter";
 
 export const getProfile = query({
-  args: { userId: v.string() },
+  args: { userId: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const userId = identity.subject;
+
     return await ctx.db
       .query("wellnessProfiles")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .unique();
   },
 });
 
 export const updateProfile = mutation({
   args: {
-    userId: v.string(),
+    userId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const userId = identity.subject;
+
+    await checkRateLimit(ctx, userId, "journal_write", 5, 60000);
+
     // 1. Fetch all relevant data for generation
     const screenings = await ctx.db
       .query("screenings")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
       .take(5);
 
     const emotionLogs = await ctx.db
       .query("emotionLogs")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
       .take(10);
 
     const microGoals = await ctx.db
       .query("microGoals")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
       .take(10);
 
     const jpmrLogs = await ctx.db
       .query("jpmrLogs")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
       .take(10);
 
@@ -82,11 +93,11 @@ export const updateProfile = mutation({
     // 3. Save or Update
     const existing = await ctx.db
       .query("wellnessProfiles")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .unique();
 
     const profileData = {
-      userId: args.userId,
+      userId,
       personality_traits,
       mood_pattern,
       wellness_goals,

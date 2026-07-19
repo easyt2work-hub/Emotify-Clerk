@@ -12,19 +12,19 @@ const CATEGORIES = [
   { id: 'all', label: 'All', icon: 'apps-outline' },
   { id: 'mindfulness', label: 'Mindfulness', icon: 'leaf-outline' },
   { id: 'relaxation', label: 'Relaxation', icon: 'water-outline' },
-  { id: 'cognitive', label: 'Cognitive', icon: 'brain-outline' },
+  { id: 'cognitive', label: 'Cognitive', icon: 'bulb-outline' },
   { id: 'habits', label: 'Habits', icon: 'ribbon-outline' },
   { id: 'sessions', label: 'Sessions', icon: 'people-outline' },
 ];
 
-function ToolHubCard({ 
-  tool, 
-  colors, 
+function ToolHubCard({
+  tool,
+  colors,
   styles,
   onPress
-}: { 
-  tool: any; 
-  colors: any; 
+}: {
+  tool: any;
+  colors: any;
   styles: any;
   onPress: () => void;
 }) {
@@ -95,6 +95,16 @@ export default function ToolsScreen() {
       categoryText: "Body Scan",
     },
     {
+      id: "companion",
+      title: "AI Companion",
+      description: "Chat with your supportive AI companion.",
+      emoji: "🧑",
+      route: "/(auth)/tools/companion" as const,
+      color: colors.primary,
+      category: "mindfulness",
+      categoryText: "Support",
+    },
+    {
       id: "jpmr",
       title: "Relax Now",
       description: "Guided deep physical relaxation.",
@@ -154,9 +164,9 @@ export default function ToolsScreen() {
         </View>
 
         {/* Categories Bar */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryScroll}
           style={styles.categoryScrollContainer}
         >
@@ -172,10 +182,10 @@ export default function ToolsScreen() {
                 ]}
                 activeOpacity={0.8}
               >
-                <Ionicons 
-                  name={cat.icon as any} 
-                  size={14} 
-                  color={isSelected ? '#FFFFFF' : colors.textSecondary} 
+                <Ionicons
+                  name={cat.icon as any}
+                  size={14}
+                  color={isSelected ? '#FFFFFF' : colors.textSecondary}
                 />
                 <Text style={[
                   styles.categoryText,

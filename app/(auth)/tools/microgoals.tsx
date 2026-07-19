@@ -8,17 +8,20 @@ import { Colors } from "@/constants/Colors";
 import { Theme } from "@/constants/Theme";
 import { Button } from "@/components/ui/Button";
 import { Ionicons } from "@expo/vector-icons";
-import { generateMicroGoals, MicroGoal } from "@/utils/microgoals";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get('window');
 
-const COMMUNITY_PHRASES = [
-  "28 students completed a calm action today.",
-  "Your campus earned 850 Calm Points this week.",
-  "Many people are building healthier habits right now."
+const MOODS = [
+  { label: "😊 Great", value: "great" },
+  { label: "🙂 Good", value: "good" },
+  { label: "😐 Okay", value: "okay" },
+  { label: "😔 Low", value: "low" },
+  { label: "😣 Stressed", value: "stressed" },
+  { label: "😴 Tired", value: "tired" },
+  { label: "😡 Frustrated", value: "frustrated" }
 ];
 
 const COMPLETED_CONGRATS = [
@@ -29,94 +32,77 @@ const COMPLETED_CONGRATS = [
   "You've just trained your mind to choose calm."
 ];
 
-const MISSED_ENCOURAGEMENTS = [
-  "It's okay. Try now for just 2 minutes.",
-  "Missed today? No problem. Small steps still count.",
-  "Consistency beats perfection.",
-  "You can always begin again.",
-  "Want a quick breathing break instead?"
-];
-
 const BADGES_DEFINITIONS = [
   { id: "first_step", name: "First Step", desc: "Complete First Goal", icon: "footsteps-outline", color: "#10B981" },
-  { id: "consistent", name: "Consistent", desc: "7 Day Streak", icon: "flame-outline", color: "#EF4444" },
-  { id: "calm_builder", name: "Calm Builder", desc: "100 Points Earned", icon: "ribbon-outline", color: "#F59E0B" },
-  { id: "strong_habit", name: "Strong Habit", desc: "30 Goals Completed", icon: "heart-outline", color: "#EC4899" },
-  { id: "momentum_master", name: "Momentum Master", desc: "50 Goals Completed", icon: "trophy-outline", color: "#8B5CF6" }
+  { id: "beginner_streak", name: "Beginner Streak", desc: "3 Day Streak", icon: "flame-outline", color: "#3B82F6" },
+  { id: "consistent", name: "Consistent", desc: "7 Day Streak", icon: "flash-outline", color: "#EF4444" },
+  { id: "strong_mind", name: "Strong Mind", desc: "14 Day Streak", icon: "shield-outline", color: "#EC4899" },
+  { id: "habit_builder", name: "Habit Builder", desc: "30 Day Streak", icon: "heart-outline", color: "#F59E0B" },
+  { id: "calm_builder", name: "Calm Builder", desc: "100 Coins Earned", icon: "ribbon-outline", color: "#8B5CF6" }
 ];
+
+function getXpRangeForLevel(level: number) {
+  const levels = [
+    { lvl: 1, min: 0, max: 100 },
+    { lvl: 2, min: 100, max: 250 },
+    { lvl: 3, min: 250, max: 450 },
+    { lvl: 4, min: 450, max: 700 },
+    { lvl: 5, min: 700, max: 1000 },
+    { lvl: 6, min: 1000, max: 1400 },
+    { lvl: 7, min: 1400, max: 1900 },
+    { lvl: 8, min: 1900, max: 2500 },
+    { lvl: 9, min: 2500, max: 3200 },
+    { lvl: 10, min: 3200, max: 5000 },
+  ];
+  return levels.find(l => l.lvl === level) || { lvl: level, min: 3200, max: 10000 };
+}
 
 export default function MicroGoalsScreen() {
   const router = useRouter();
   const { user } = useAppAuth();
   const insets = useSafeAreaInsets();
-  const todayStr = new Date().toISOString().split('T')[0];
 
   // Convex Queries
-  const latestScreening = useQuery(api.screening.getLatest, { userId: user?.id ?? "" });
-  const latestTriage = useQuery(api.triage.getLatest, { userId: user?.id ?? "" });
+  const todayCheckin = useQuery(api.microGoals.getTodayCheckin);
   const dailyGoals = useQuery(api.microGoals.getTodayGoals, { userId: user?.id ?? "" });
-  const totalPoints = useQuery(api.microGoals.getPoints, { userId: user?.id ?? "" });
   const streakInfo = useQuery(api.microGoals.getStreak, { userId: user?.id ?? "" });
+  const gamification = useQuery(api.microGoals.getGamificationStats);
+  const weeklyMission = useQuery(api.microGoals.getWeeklyMission);
+  const monthlyChallenge = useQuery(api.microGoals.getMonthlyChallenge);
   const badgesEarned = useQuery(api.microGoals.getBadges, { userId: user?.id ?? "" });
-  const weeklySummary = useQuery(api.microGoals.getWeeklySummary, { userId: user?.id ?? "" });
   const goalHistory = useQuery(api.microGoals.getGoalHistory, { userId: user?.id ?? "" });
+  const weeklySummary = useQuery(api.microGoals.getWeeklySummary, { userId: user?.id ?? "" });
 
   // Convex Mutations
-  const createGoal = useMutation(api.microGoals.createGoal);
-  const scheduleGoal = useMutation(api.microGoals.scheduleGoal);
-  const completeGoal = useMutation(api.microGoals.completeGoal);
+  const submitCheckin = useMutation(api.microGoals.submitMorningCheckin);
+  const completeGoalWithFeeling = useMutation(api.microGoals.completeGoalWithFeeling);
+  const scheduleGoalRelative = useMutation(api.microGoals.scheduleGoalRelative);
+  const snoozeGoal = useMutation(api.microGoals.snoozeGoal);
   const skipGoal = useMutation(api.microGoals.skipGoal);
-  const rescheduleGoal = useMutation(api.microGoals.rescheduleGoal);
 
-  // Layout states
-  const [activeView, setActiveView] = useState<"dashboard" | "history">("dashboard");
-  const [selectedGoal, setSelectedGoal] = useState<MicroGoal | null>(null);
-  
-  // Modal toggles
+  // States
+  const [activeTab, setActiveTab] = useState<"goals" | "progress" | "history">("goals");
+  const [selectedGoal, setSelectedGoal] = useState<any | null>(null);
+  const [isCheckinLoading, setIsCheckinLoading] = useState(false);
+  const [isMutationLoading, setIsMutationLoading] = useState(false);
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
   const [isScheduleVisible, setIsScheduleVisible] = useState(false);
+  const [isFeelingVisible, setIsFeelingVisible] = useState(false);
   const [isCelebrationVisible, setIsCelebrationVisible] = useState(false);
-  const [isMissedVisible, setIsMissedVisible] = useState(false);
-  
-  // Goal selection states
-  const [isSelectingGoal, setIsSelectingGoal] = useState(false);
-  const [localSelectedGoal, setLocalSelectedGoal] = useState<MicroGoal | null>(null);
-  
-  // Goal completed/mutation loading states
-  const [isMutationLoading, setIsMutationLoading] = useState(false);
-  const [completedPoints, setCompletedPoints] = useState(0);
-  const [dismissedMissedGoalIds, setDismissedMissedGoalIds] = useState<string[]>([]);
-  const [historyFilter, setHistoryFilter] = useState<"today" | "7days" | "30days">("7days");
+  const [isSnoozeVisible, setIsSnoozeVisible] = useState(false);
 
-  // Custom states
-  const [selectedTime, setSelectedTime] = useState("12:00 PM");
-  const [celebrationMsg, setCelebrationMsg] = useState("");
-  const [missedMsg, setMissedMsg] = useState("");
-  const [communityPhrase, setCommunityPhrase] = useState("");
-  const [missedGoalItem, setMissedGoalItem] = useState<any>(null);
+  // Completion awards data
+  const [rewardData, setRewardData] = useState<{ xp: number; coins: number; levelUp: boolean; perfectDay: boolean; newLevel: number } | null>(null);
 
-  // Load random quotes
-  useEffect(() => {
-    setCelebrationMsg(COMPLETED_CONGRATS[Math.floor(Math.random() * COMPLETED_CONGRATS.length)]);
-    setMissedMsg(MISSED_ENCOURAGEMENTS[Math.floor(Math.random() * MISSED_ENCOURAGEMENTS.length)]);
-    setCommunityPhrase(COMMUNITY_PHRASES[Math.floor(Math.random() * COMMUNITY_PHRASES.length)]);
-  }, [isCelebrationVisible, isMissedVisible]);
-
-  // Check for missed goals on mount or dailyGoals change
-  useEffect(() => {
-    if (dailyGoals && dailyGoals.length > 0) {
-      const now = Date.now();
-      const missed = dailyGoals.find(
-        (g) => !g.completed && !g.skipped && g.scheduledTime && g.scheduledTime < now && !dismissedMissedGoalIds.includes(g._id)
-      );
-      if (missed) {
-        setMissedGoalItem(missed);
-        setIsMissedVisible(true);
-      }
-    }
-  }, [dailyGoals, dismissedMissedGoalIds]);
-
-  if (dailyGoals === undefined || totalPoints === undefined || streakInfo === undefined || latestScreening === undefined || goalHistory === undefined) {
+  if (
+    dailyGoals === undefined ||
+    streakInfo === undefined ||
+    gamification === undefined ||
+    weeklyMission === undefined ||
+    monthlyChallenge === undefined ||
+    badgesEarned === undefined ||
+    goalHistory === undefined
+  ) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -124,255 +110,127 @@ export default function MicroGoalsScreen() {
     );
   }
 
-  // Personalization logic
-  const wsas_total = latestScreening?.wsas_total ?? 0;
-  const reqol10_total = latestScreening?.reqol10_total ?? 0;
-  const triage_level = latestTriage?.level ?? 'mild';
-  const isSevere = wsas_total > 20 || triage_level === 'severe';
-
-  // Generate stable recommended goals for today
-  const availableOptions = generateMicroGoals({ 
-    wsas_total, 
-    reqol10_total, 
-    triage_level,
-    userId: user?.id ?? "",
-    dateStr: todayStr
-  });
-
-  // Filter options that haven't been added to today's list yet
-  const remainingOptions = availableOptions.filter(opt => !dailyGoals.some(g => g.goalId === opt.id));
-
   const completedCount = dailyGoals.filter((g) => g.completed).length;
-  const progressPercent = dailyGoals.length > 0 ? completedCount / dailyGoals.length : 0;
+  const totalGoalsCount = dailyGoals.length;
+  const progressPercent = totalGoalsCount > 0 ? completedCount / totalGoalsCount : 0;
 
-  const MAX_DAILY_GOALS = 3;
+  // Level computation logic
+  const currentLevel = gamification?.level || 1;
+  const xpVal = gamification?.xp || 0;
+  const coinsVal = gamification?.coins || 0;
+  const levelRange = getXpRangeForLevel(currentLevel);
+  const xpProgress = xpVal - levelRange.min;
+  const xpNeeded = levelRange.max - levelRange.min;
+  const xpPercent = Math.min(1, Math.max(0, xpProgress / xpNeeded));
 
-  const handleAddGoal = async (g: MicroGoal) => {
-    if (dailyGoals.length >= MAX_DAILY_GOALS) {
-      Alert.alert("Goal Limit Reached", "You can focus on a maximum of 3 microgoals per day.");
-      setIsSelectingGoal(false);
-      return;
-    }
-    
+  // Handler functions
+  const handleMoodSelect = async (mood: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    setIsMutationLoading(true);
+    setIsCheckinLoading(true);
     try {
-      const dbId = await createGoal({
-        userId: user?.id ?? "",
-        goalId: g.id,
-        goalTitle: g.title,
-        goalDescription: g.description,
-        category: g.category,
-        difficulty: g.difficulty,
-        points: g.points,
-      });
-      
-      setSelectedGoal({
-        ...g,
-        id: dbId
-      });
-      setIsSelectingGoal(false);
-      setLocalSelectedGoal(null);
-      setIsScheduleVisible(true);
+      await submitCheckin({ mood });
     } catch (e: any) {
-      console.error(e);
-      Alert.alert("Error", e?.message || "Could not add goal. Please try again.");
+      Alert.alert("Check-in Failed", e.message || "Failed to submit check-in. Try again.");
     } finally {
-      setIsMutationLoading(false);
-    }
-  };
-
-  const handleCreateRecommendedGoals = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    setIsMutationLoading(true);
-    try {
-      for (const g of availableOptions) {
-        if (dailyGoals.length >= MAX_DAILY_GOALS) break;
-        await createGoal({
-          userId: user?.id ?? "",
-          goalId: g.id,
-          goalTitle: g.title,
-          goalDescription: g.description,
-          category: g.category,
-          difficulty: g.difficulty,
-          points: g.points,
-        });
-      }
-    } catch (e: any) {
-      console.error(e);
-      Alert.alert("Error", e?.message || "Could not generate goals. Please try again.");
-    } finally {
-      setIsMutationLoading(false);
+      setIsCheckinLoading(false);
     }
   };
 
   const handleOpenGoalDetails = (goal: any) => {
-    const matching = availableOptions.find(o => o.id === goal.goalId) || {
-      id: goal.goalId,
-      title: goal.goalTitle,
-      description: goal.goalDescription,
-      points: goal.points,
-      category: goal.category,
-      difficulty: goal.difficulty as any,
-      whyItHelps: "This action builds consistency and mindfulness.",
-      estimatedTime: "5 mins"
-    };
-    setSelectedGoal({
-      ...matching,
-      id: goal._id
-    });
+    setSelectedGoal(goal);
     setIsDetailsVisible(true);
   };
 
-  const handleOpenSchedule = () => {
+  const handleOpenRelativeScheduling = () => {
     setIsDetailsVisible(false);
     setIsScheduleVisible(true);
   };
 
-  const handleOpenScheduleForGoal = (goal: any) => {
-    const matching = availableOptions.find(o => o.id === goal.goalId) || {
-      id: goal.goalId,
-      title: goal.goalTitle,
-      description: goal.goalDescription,
-      points: goal.points,
-      category: goal.category,
-      difficulty: goal.difficulty as any,
-      whyItHelps: "This action builds consistency and mindfulness.",
-      estimatedTime: "5 mins"
-    };
-    setSelectedGoal({
-      ...matching,
-      id: goal._id
-    });
-    setIsDetailsVisible(false);
-    setIsScheduleVisible(true);
-  };
-
-  const handleScheduleTimeSelect = async (timeStr: string) => {
+  const handleScheduleSelect = async (minutes: number) => {
     if (!selectedGoal) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    setSelectedTime(timeStr);
-    
-    const [time, modifier] = timeStr.split(" ");
-    let [hours, minutes] = time.split(":").map(Number);
-    if (modifier === "PM" && hours < 12) hours += 12;
-    if (modifier === "AM" && hours === 12) hours = 0;
-
-    const scheduledDate = new Date();
-    scheduledDate.setHours(hours, minutes, 0, 0);
-    const scheduledTimeMs = scheduledDate.getTime();
-
     setIsMutationLoading(true);
     try {
-      await scheduleGoal({
-        id: selectedGoal.id as any,
-        scheduledTime: scheduledTimeMs,
-      });
-
+      await scheduleGoalRelative({ id: selectedGoal._id, offsetMinutes: minutes });
       setIsScheduleVisible(false);
       setSelectedGoal(null);
-      Alert.alert(
-        "Goal Scheduled! ⏰",
-        `Goal scheduled for ${timeStr}.`
-      );
+      Alert.alert("Goal Scheduled! ⏰", `Goal set for relative reminder.`);
     } catch (e: any) {
-      console.error(e);
-      Alert.alert("Scheduling Failed", e?.message || "Failed to schedule goal. Please try again.");
+      Alert.alert("Scheduling Error", e.message || "Could not schedule goal.");
     } finally {
       setIsMutationLoading(false);
     }
   };
 
-  const handleCompleteGoal = async (id: any, points: number) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setCompletedPoints(points);
-    setIsMutationLoading(true);
-    try {
-      await completeGoal({ id });
-      setCelebrationMsg(COMPLETED_CONGRATS[Math.floor(Math.random() * COMPLETED_CONGRATS.length)]);
-      setIsCelebrationVisible(true);
-    } catch (e: any) {
-      console.error(e);
-      Alert.alert("Error", e?.message || "Could not complete goal. Please try again.");
-    } finally {
-      setIsMutationLoading(false);
-    }
+  const handleOpenSnooze = (goal: any) => {
+    setSelectedGoal(goal);
+    setIsSnoozeVisible(true);
   };
 
-  const handleSkipGoal = async (id: any) => {
+  const handleSnoozeSelect = async (minutes: number) => {
+    if (!selectedGoal) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setIsMutationLoading(true);
     try {
-      await skipGoal({ id });
-      setDismissedMissedGoalIds(prev => [...prev, id]);
-      setIsMissedVisible(false);
-      setMissedGoalItem(null);
+      await snoozeGoal({ id: selectedGoal._id, snoozeMinutes: minutes });
+      setIsSnoozeVisible(false);
+      setSelectedGoal(null);
+      Alert.alert("Goal Snoozed 😴", `Goal snoozed for ${minutes} minutes.`);
     } catch (e: any) {
-      console.error(e);
-      Alert.alert("Error", e?.message || "Could not skip goal. Please try again.");
+      Alert.alert("Snooze Error", e.message || "Could not snooze goal.");
     } finally {
       setIsMutationLoading(false);
     }
   };
 
-  const handleRescheduleGoal = async (id: any, minutesOffset: number) => {
+  const handleTriggerComplete = (goal: any) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    setSelectedGoal(goal);
+    setIsFeelingVisible(true);
+  };
+
+  const handleCompleteWithFeeling = async (feeling: string) => {
+    if (!selectedGoal) return;
+    setIsFeelingVisible(false);
     setIsMutationLoading(true);
     try {
-      const newTime = Date.now() + minutesOffset * 60 * 1000;
-      await rescheduleGoal({ id, scheduledTime: newTime });
-
-      setDismissedMissedGoalIds(prev => [...prev, id]);
-      setIsMissedVisible(false);
-      setMissedGoalItem(null);
-      Alert.alert("Rescheduled ⏰", `Goal rescheduled for ${minutesOffset} minutes from now.`);
+      const res = await completeGoalWithFeeling({ id: selectedGoal._id, feelingAfter: feeling });
+      if (res.success) {
+        setRewardData({
+          xp: res.xpAward || 10,
+          coins: res.coinsAward || 10,
+          levelUp: !!res.levelUp,
+          perfectDay: !!res.perfectDayBonus,
+          newLevel: res.newLevel || currentLevel
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        setIsCelebrationVisible(true);
+      }
     } catch (e: any) {
-      console.error(e);
-      Alert.alert("Error", e?.message || "Could not reschedule goal. Please try again.");
+      Alert.alert("Error completing goal", e.message || "Something went wrong.");
+    } finally {
+      setIsMutationLoading(false);
+      setSelectedGoal(null);
+    }
+  };
+
+  const handleSkip = async (goal: any) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setIsMutationLoading(true);
+    try {
+      await skipGoal({ id: goal._id });
+    } catch (e: any) {
+      Alert.alert("Skip Failed", e.message || "Could not skip goal.");
     } finally {
       setIsMutationLoading(false);
     }
   };
-
-  const handleRescheduleCustom = (id: any) => {
-    setIsMissedVisible(false);
-    const dbGoal = dailyGoals.find(g => g._id === id);
-    if (dbGoal) {
-      handleOpenScheduleForGoal(dbGoal);
-    }
-  };
-
-  const handleCloseMissed = () => {
-    if (missedGoalItem) {
-      setDismissedMissedGoalIds(prev => [...prev, missedGoalItem._id]);
-    }
-    setIsMissedVisible(false);
-    setMissedGoalItem(null);
-  };
-
-  // Computations for goal history
-  const historyNow = new Date();
-  const startOfToday = new Date(historyNow.getFullYear(), historyNow.getMonth(), historyNow.getDate()).getTime();
-
-  const filteredHistory = (goalHistory ?? []).filter((g) => {
-    if (historyFilter === "today") {
-      return g.createdAt >= startOfToday;
-    } else if (historyFilter === "7days") {
-      return g.createdAt >= Date.now() - 7 * 24 * 60 * 60 * 1000;
-    } else {
-      return g.createdAt >= Date.now() - 30 * 24 * 60 * 60 * 1000;
-    }
-  });
-
-  const historyCompleted = filteredHistory.filter((g) => g.completed);
-  const historySkipped = filteredHistory.filter((g) => g.skipped);
-  const historyPoints = historyCompleted.reduce((sum, g) => sum + g.points, 0);
 
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#F4F3FF', '#E0DBFF']} style={StyleSheet.absoluteFill} />
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={[
           styles.content,
           {
@@ -382,359 +240,370 @@ export default function MicroGoalsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Back navigation & Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Today's MicroGoals</Text>
-          <Text style={styles.subtitle}>Small steps create meaningful change.</Text>
+          <Text style={styles.title}>MicroGoals Hub</Text>
+          <Text style={styles.subtitle}>Build consistency with tiny, restorative daily habits.</Text>
         </View>
 
-        {/* Home Stats Dashboard Card */}
-        <View style={styles.glassCard}>
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={styles.statIcon}>⭐</Text>
-              <Text style={styles.statVal}>{totalPoints}</Text>
-              <Text style={styles.statLbl}>Calm Points</Text>
+        {/* 1. GAMIFICATION HUB HEADER */}
+        <View style={styles.gamificationHub}>
+          <View style={styles.xpRow}>
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelText}>LVL {currentLevel}</Text>
             </View>
-            <View style={styles.dividerVertical} />
-            <View style={styles.statBox}>
-              <Text style={styles.statIcon}>🔥</Text>
-              <Text style={styles.statVal}>{streakInfo?.currentStreak ?? 0} Days</Text>
-              <Text style={styles.statLbl}>Streak</Text>
-            </View>
-            <View style={styles.dividerVertical} />
-            <View style={styles.statBox}>
-              <Text style={styles.statIcon}>✅</Text>
-              <Text style={styles.statVal}>{completedCount} of {dailyGoals.length}</Text>
-              <Text style={styles.statLbl}>Completed</Text>
+            <View style={styles.xpTrack}>
+              <View style={[styles.xpBar, { width: `${xpPercent * 100}%` }]} />
+              <Text style={styles.xpProgressLabel}>{xpProgress} / {xpNeeded} XP</Text>
             </View>
           </View>
 
-          {dailyGoals.length > 0 && (
-            <View style={styles.progressContainer}>
-              <View style={styles.progressHeader}>
-                <Text style={styles.progressLabel}>Daily Progress</Text>
-                <Text style={styles.progressPct}>{Math.round(progressPercent * 100)}%</Text>
-              </View>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressBar, { width: `${progressPercent * 100}%` }]} />
-              </View>
+          <View style={styles.economyRow}>
+            <View style={styles.ecoItem}>
+              <Text style={styles.ecoIcon}>🪙</Text>
+              <Text style={styles.ecoVal}>{coinsVal}</Text>
+              <Text style={styles.ecoLbl}>Coins</Text>
             </View>
-          )}
+            <View style={styles.verticalDivider} />
+            <View style={styles.ecoItem}>
+              <Text style={styles.ecoIcon}>🔥</Text>
+              <Text style={styles.ecoVal}>{streakInfo?.currentStreak ?? 0} Days</Text>
+              <Text style={styles.ecoLbl}>Active Streak</Text>
+            </View>
+            <View style={styles.verticalDivider} />
+            <View style={styles.ecoItem}>
+              <Text style={styles.ecoIcon}>❄️</Text>
+              <Text style={styles.ecoVal}>{streakInfo?.frozen ? "Active" : "Ready"}</Text>
+              <Text style={styles.ecoLbl}>Freeze Lock</Text>
+            </View>
+          </View>
         </View>
 
-        {/* Personalized Triage Banners */}
-        {isSevere && (
-          <View style={[styles.bannerCard, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
-            <Ionicons name="heart-circle" size={20} color="#EF4444" style={{ marginRight: 8 }} />
-            <Text style={[styles.bannerText, { color: '#B91C1C' }]}>
-              Daily tasks seem difficult right now. We'll start with very small goals.
-            </Text>
-          </View>
-        )}
-        {reqol10_total < 15 && !isSevere && (
-          <View style={[styles.bannerCard, { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' }]}>
-            <Ionicons name="sparkles" size={20} color="#22C55E" style={{ marginRight: 8 }} />
-            <Text style={[styles.bannerText, { color: '#15803D' }]}>
-              Let's add a few wellbeing boosters to your day.
-            </Text>
-          </View>
-        )}
-
-        {/* Tabs to toggle views */}
-        <View style={styles.viewTabs}>
-          <TouchableOpacity 
-            style={[styles.viewTabBtn, activeView === "dashboard" && styles.viewTabBtnActive]}
-            onPress={() => setActiveView("dashboard")}
-          >
-            <Text style={[styles.viewTabText, activeView === "dashboard" && styles.viewTabTextActive]}>Dashboard</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.viewTabBtn, activeView === "history" && styles.viewTabBtnActive]}
-            onPress={() => setActiveView("history")}
-          >
-            <Text style={[styles.viewTabText, activeView === "history" && styles.viewTabTextActive]}>Weekly & Badges</Text>
-          </TouchableOpacity>
+        {/* Tab Selection */}
+        <View style={styles.tabsRow}>
+          {[
+            { id: "goals", label: "Daily Goals" },
+            { id: "progress", label: "Missions" },
+            { id: "history", label: "Analytics" }
+          ].map(tab => (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.tabButton, activeTab === tab.id && styles.tabButtonActive]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                setActiveTab(tab.id as any);
+              }}
+            >
+              <Text style={[styles.tabButtonText, activeTab === tab.id && styles.tabButtonTextActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {activeView === "dashboard" && (
-          <View style={styles.section}>
-            {isSelectingGoal || dailyGoals.length === 0 ? (
-              <View style={styles.selectionContainer}>
-                <View style={styles.selectionHeader}>
-                  <Text style={styles.selectionTitle}>Choose Today's Goal</Text>
-                  <Text style={styles.selectionSubtitle}>Pick one small action to focus on.</Text>
-                </View>
-
-                {remainingOptions.length === 0 ? (
-                  <View style={styles.generateCard}>
-                    <Text style={styles.sectionTitle}>All Goals Added!</Text>
-                    <Text style={styles.generateDesc}>
-                      You have added all available recommended goals for today.
-                    </Text>
-                    {dailyGoals.length > 0 && (
-                      <Button
-                        title="Back to Dashboard"
-                        onPress={() => setIsSelectingGoal(false)}
-                        style={styles.actionBtn}
-                      />
-                    )}
-                  </View>
+        {/* ==========================================
+            TAB 1: TODAY'S GOALS & CHECK-IN
+            ========================================== */}
+        {activeTab === "goals" && (
+          <View style={styles.tabSection}>
+            {/* Morning checkin check */}
+            {!todayCheckin ? (
+              <View style={styles.glassCard}>
+                <Text style={styles.checkinTitle}>🌅 Morning Check-in</Text>
+                <Text style={styles.checkinSubtitle}>How are you feeling today? Your choice will adapt today's wellness plan.</Text>
+                
+                {isCheckinLoading ? (
+                  <ActivityIndicator size="large" color={Colors.primary} style={{ marginVertical: 20 }} />
                 ) : (
-                  <View style={styles.optionsList}>
-                    {remainingOptions.map((opt) => {
-                      const isSelected = localSelectedGoal?.id === opt.id;
-                      const categoryIcons: Record<string, string> = {
-                        health: "medical-outline",
-                        movement: "walk-outline",
-                        mindfulness: "leaf-outline",
-                        routine: "calendar-outline",
-                        joy: "happy-outline",
-                        social: "chatbubbles-outline",
-                        wellbeing: "sparkles-outline"
-                      };
-                      const iconName = categoryIcons[opt.category] || "checkbox-outline";
-
-                      return (
-                        <TouchableOpacity
-                          key={opt.id}
-                          style={[
-                            styles.optionCard,
-                            isSelected && styles.optionCardSelected
-                          ]}
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                            setLocalSelectedGoal(opt);
-                          }}
-                        >
-                          <View style={styles.optionCardHeader}>
-                            <View style={[styles.categoryIconBox, { backgroundColor: isSelected ? '#FAF9FF' : '#F3F0FF' }]}>
-                              <Ionicons name={iconName as any} size={22} color={Colors.primary} />
-                            </View>
-                            <View style={styles.pointsBadge}>
-                              <Text style={styles.pointsBadgeText}>+{opt.points} pts</Text>
-                            </View>
-                          </View>
-                          
-                          <Text style={styles.optionCardTitle}>🎯 {opt.title}</Text>
-                          <Text style={styles.optionCardDesc}>{opt.description}</Text>
-
-                          <View style={styles.dividerHorizontal} />
-
-                          <View style={styles.optionFooter}>
-                            <Text style={styles.optionFooterText}>⏰ Estimated Time: {opt.estimatedTime}</Text>
-                            <Text style={styles.optionFooterText}>💡 Why It Helps: {opt.whyItHelps}</Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-
-                    <View style={styles.selectionActions}>
-                      <Button
-                        title="Add Goal to My Day"
-                        disabled={!localSelectedGoal}
-                        onPress={() => localSelectedGoal && handleAddGoal(localSelectedGoal)}
-                        style={styles.actionBtn}
-                      />
-                      
-                      {dailyGoals.length > 0 && (
-                        <Button
-                          title="Cancel"
-                          variant="outline"
-                          onPress={() => {
-                            setIsSelectingGoal(false);
-                            setLocalSelectedGoal(null);
-                          }}
-                          style={styles.actionBtnOutline}
-                          textStyle={{ color: Colors.primary }}
-                        />
-                      )}
-                    </View>
+                  <View style={styles.moodGrid}>
+                    {MOODS.map(mood => (
+                      <TouchableOpacity
+                        key={mood.value}
+                        style={styles.moodBtn}
+                        onPress={() => handleMoodSelect(mood.value)}
+                      >
+                        <Text style={styles.moodText}>{mood.label}</Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 )}
               </View>
             ) : (
-              <View style={styles.goalsList}>
-                <Text style={styles.sectionTitle}>Active Goals For Today</Text>
-                
-                {dailyGoals.map((goal) => (
-                  <View key={goal._id} style={[styles.goalItemCard, goal.completed && styles.goalItemCompleted]}>
-                    <TouchableOpacity 
-                      disabled={goal.completed || goal.skipped}
-                      onPress={() => handleCompleteGoal(goal._id, goal.points)}
-                      style={[styles.checkCircle, goal.completed && styles.checkCircleActive]}
-                    >
-                      {goal.completed && <Ionicons name="checkmark" size={16} color={Colors.white} />}
-                    </TouchableOpacity>
+              <View style={{ width: '100%', gap: 12 }}>
+                {/* Active Check-in mood notice */}
+                <View style={styles.moodBanner}>
+                  <Ionicons name="sunny-outline" size={20} color="#6D28D9" style={{ marginRight: 8 }} />
+                  <Text style={styles.moodBannerText}>
+                    Today's check-in: <Text style={{ fontWeight: 'bold' }}>{todayCheckin.mood.toUpperCase()}</Text>. Focus is adjusted.
+                  </Text>
+                </View>
 
-                    <TouchableOpacity 
-                      style={{ flex: 1 }} 
-                      onPress={() => handleOpenGoalDetails(goal)}
-                      disabled={goal.completed || goal.skipped}
-                    >
-                      <Text style={[styles.goalItemTitle, goal.completed && styles.goalTitleCompleted]}>
-                        🎯 {goal.goalTitle}
-                      </Text>
-                      <Text style={styles.goalItemDesc}>{goal.goalDescription}</Text>
-                      {goal.scheduledTime ? (
-                        <Text style={styles.scheduledLabel}>
-                          ⏰ Scheduled for {new Date(goal.scheduledTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                        </Text>
-                      ) : null}
-                    </TouchableOpacity>
-
-                    <View style={styles.rewardContainer}>
-                      <Text style={styles.rewardText}>+{goal.points} pts</Text>
-                      {!goal.completed && !goal.skipped && (
-                        <TouchableOpacity style={styles.scheduleBtn} onPress={() => handleOpenGoalDetails(goal)}>
-                          <Ionicons name="alarm-outline" size={18} color={Colors.primary} />
-                        </TouchableOpacity>
-                      )}
+                {/* Progress bar */}
+                {totalGoalsCount > 0 && (
+                  <View style={styles.glassCard}>
+                    <View style={styles.progressBarRow}>
+                      <Text style={styles.progressTitle}>Daily Focus Progress</Text>
+                      <Text style={styles.progressValText}>{completedCount} of {totalGoalsCount} completed</Text>
+                    </View>
+                    <View style={styles.progressTrack}>
+                      <View style={[styles.progressBar, { width: `${progressPercent * 100}%` }]} />
                     </View>
                   </View>
-                ))}
+                )}
 
-                {/* Create/Add goal button at the bottom of the active list */}
-                {remainingOptions.length > 0 && (
-                  <TouchableOpacity
-                    style={styles.addGoalCard}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                      setIsSelectingGoal(true);
-                    }}
-                  >
-                    <Ionicons name="add-circle" size={24} color={Colors.primary} />
-                    <Text style={styles.addGoalCardText}>Choose Another Goal ({remainingOptions.length} left)</Text>
-                  </TouchableOpacity>
+                {/* Goals Listing */}
+                <Text style={styles.sectionTitle}>Today's Habit Actions</Text>
+                {dailyGoals.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                    <Text style={styles.emptyText}>Building your recommendation schedule...</Text>
+                  </View>
+                ) : (
+                  dailyGoals.map(goal => {
+                    const diffColors: Record<string, string> = {
+                      easy: "#10B981",
+                      medium: "#F59E0B",
+                      large: "#8B5CF6",
+                      very_small: "#3B82F6"
+                    };
+                    const diffColor = diffColors[goal.difficulty] || "#64748B";
+
+                    return (
+                      <View
+                        key={goal._id}
+                        style={[
+                          styles.goalCard,
+                          goal.completed && styles.goalCardCompleted,
+                          goal.isDailyChallenge && styles.challengeGoalCard
+                        ]}
+                      >
+                        {/* Left checkbox */}
+                        <TouchableOpacity
+                          style={[styles.checkbox, goal.completed && styles.checkboxActive]}
+                          onPress={() => !goal.completed && handleTriggerComplete(goal)}
+                          disabled={goal.completed || goal.skipped}
+                        >
+                          {goal.completed && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                        </TouchableOpacity>
+
+                        {/* Mid Details */}
+                        <TouchableOpacity
+                          style={{ flex: 1 }}
+                          onPress={() => handleOpenGoalDetails(goal)}
+                          disabled={goal.completed || goal.skipped}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                            {goal.isDailyChallenge && (
+                              <View style={styles.challengeBadge}>
+                                <Text style={styles.challengeBadgeText}>CHALLENGE</Text>
+                              </View>
+                            )}
+                            <View style={[styles.diffIndicator, { backgroundColor: diffColor + "15" }]}>
+                              <Text style={[styles.diffIndicatorText, { color: diffColor }]}>
+                                {goal.difficulty.toUpperCase().replace("_", " ")}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={[styles.goalTitleText, goal.completed && styles.goalTextCompleted]}>
+                            {goal.goalTitle}
+                          </Text>
+                          <Text style={styles.goalDescText} numberOfLines={1}>{goal.goalDescription}</Text>
+                          {goal.scheduledTime ? (
+                            <View style={styles.scheduledRow}>
+                              <Ionicons name="alarm-outline" size={12} color="#6D28D9" style={{ marginRight: 4 }} />
+                              <Text style={styles.scheduledText}>
+                                Scheduled: {new Date(goal.scheduledTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </TouchableOpacity>
+
+                        {/* Right Points/XP award badge */}
+                        <View style={{ alignItems: 'flex-end', justifyContent: 'center', gap: 6 }}>
+                          <View style={styles.xpRewardBadge}>
+                            <Text style={styles.xpRewardText}>+{goal.xpAwarded || goal.points} XP</Text>
+                          </View>
+                          {!goal.completed && !goal.skipped && (
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                              <TouchableOpacity onPress={() => handleOpenGoalDetails(goal)} style={styles.smallCircleButton}>
+                                <Ionicons name="alarm-outline" size={16} color="#6D28D9" />
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={() => handleSkip(goal)} style={styles.smallCircleButton}>
+                                <Ionicons name="close" size={16} color="#EF4444" />
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })
                 )}
               </View>
             )}
+          </View>
+        )}
 
-            {/* Community Modeling */}
-            <View style={styles.communityCard}>
-              <View style={styles.communityIconBox}>
-                <Ionicons name="people" size={24} color={Colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.communityTitle}>Campus Pulse</Text>
-                <Text style={styles.communityText}>{communityPhrase}</Text>
+        {/* ==========================================
+            TAB 2: MISSIONS & BADGES
+            ========================================== */}
+        {activeTab === "progress" && (
+          <View style={styles.tabSection}>
+            {/* Weekly Missions */}
+            <View style={styles.glassCard}>
+              <Text style={styles.sectionTitle}>🗓️ Weekly Missions</Text>
+              <Text style={styles.checkinSubtitle}>Resets every Monday. Complete all tracks to earn bonus rewards.</Text>
+              
+              {weeklyMission ? (
+                <View style={{ gap: 12, marginTop: 10 }}>
+                  {/* Goal count track */}
+                  <View style={styles.missionProgressBox}>
+                    <View style={styles.missionHeaderRow}>
+                      <Text style={styles.missionLabelText}>Complete 18 MicroGoals</Text>
+                      <Text style={styles.missionProgressVal}>{weeklyMission.goalCountCurrent} / {weeklyMission.goalCountTarget}</Text>
+                    </View>
+                    <View style={styles.missionTrack}>
+                      <View style={[styles.missionBar, { width: `${Math.min(1, weeklyMission.goalCountCurrent / weeklyMission.goalCountTarget) * 100}%` }]} />
+                    </View>
+                  </View>
+
+                  {/* JPMR count track */}
+                  <View style={styles.missionProgressBox}>
+                    <View style={styles.missionHeaderRow}>
+                      <Text style={styles.missionLabelText}>Complete JPMR Relaxation Twice</Text>
+                      <Text style={styles.missionProgressVal}>{weeklyMission.jpmrCurrent} / {weeklyMission.jpmrTarget}</Text>
+                    </View>
+                    <View style={styles.missionTrack}>
+                      <View style={[styles.missionBar, { width: `${Math.min(1, weeklyMission.jpmrCurrent / weeklyMission.jpmrTarget) * 100}%` }]} />
+                    </View>
+                  </View>
+
+                  {/* Journaling track */}
+                  <View style={styles.missionProgressBox}>
+                    <View style={styles.missionHeaderRow}>
+                      <Text style={styles.missionLabelText}>Journal Your Emotion Logs 5 Days</Text>
+                      <Text style={styles.missionProgressVal}>{weeklyMission.journalCurrent} / {weeklyMission.journalTarget}</Text>
+                    </View>
+                    <View style={styles.missionTrack}>
+                      <View style={[styles.missionBar, { width: `${Math.min(1, weeklyMission.journalCurrent / weeklyMission.journalTarget) * 100}%` }]} />
+                    </View>
+                  </View>
+
+                  <View style={styles.missionRewardFooter}>
+                    <Text style={styles.rewardText}>Reward: 💰 100 Coins | ⭐ 500 XP</Text>
+                    {weeklyMission.completed && (
+                      <View style={styles.completedMissionTag}>
+                        <Text style={styles.completedTagText}>CLAIMED</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              )}
+            </View>
+
+            {/* Monthly Challenge */}
+            <View style={styles.glassCard}>
+              <Text style={styles.sectionTitle}>🏆 Monthly Challenge</Text>
+              {monthlyChallenge ? (
+                <View style={{ gap: 12, marginTop: 10 }}>
+                  <View style={styles.missionProgressBox}>
+                    <View style={styles.missionHeaderRow}>
+                      <Text style={styles.missionLabelText}>Complete 70 Habit Goals</Text>
+                      <Text style={styles.missionProgressVal}>{monthlyChallenge.goalCountCurrent} / {monthlyChallenge.goalCountTarget}</Text>
+                    </View>
+                    <View style={styles.missionTrack}>
+                      <View style={[styles.missionBar, { backgroundColor: '#8B5CF6', width: `${Math.min(1, monthlyChallenge.goalCountCurrent / monthlyChallenge.goalCountTarget) * 100}%` }]} />
+                    </View>
+                  </View>
+
+                  <View style={styles.missionProgressBox}>
+                    <View style={styles.missionHeaderRow}>
+                      <Text style={styles.missionLabelText}>Reach 20 Day Streak</Text>
+                      <Text style={styles.missionProgressVal}>{monthlyChallenge.streakCurrent} / {monthlyChallenge.streakTarget}</Text>
+                    </View>
+                    <View style={styles.missionTrack}>
+                      <View style={[styles.missionBar, { backgroundColor: '#8B5CF6', width: `${Math.min(1, monthlyChallenge.streakCurrent / monthlyChallenge.streakTarget) * 100}%` }]} />
+                    </View>
+                  </View>
+
+                  <View style={styles.monthlyRewardBox}>
+                    <Text style={styles.rewardText}>Exclusive Reward: 🏅 {monthlyChallenge.badgeRewardName} Badge</Text>
+                    {monthlyChallenge.completed && (
+                      <View style={[styles.completedMissionTag, { backgroundColor: '#8B5CF6' }]}>
+                        <Text style={styles.completedTagText}>UNLOCKED</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              )}
+            </View>
+
+            {/* Badges Cabinet */}
+            <View style={styles.glassCard}>
+              <Text style={styles.sectionTitle}>🏅 Badge Cabinet</Text>
+              <View style={styles.badgesGrid}>
+                {BADGES_DEFINITIONS.map(badge => {
+                  const isEarned = badgesEarned.some(b => b.badgeId === badge.id);
+                  return (
+                    <View key={badge.id} style={[styles.badgeItemBox, !isEarned && styles.badgeLocked]}>
+                      <View style={[styles.badgeIcon, { backgroundColor: isEarned ? badge.color + "15" : "#E2E8F0" }]}>
+                        <Ionicons name={badge.icon as any} size={28} color={isEarned ? badge.color : "#94A3B8"} />
+                      </View>
+                      <Text style={styles.badgeNameText}>{badge.name}</Text>
+                      <Text style={styles.badgeDescText}>{badge.desc}</Text>
+                    </View>
+                  );
+                })}
               </View>
             </View>
           </View>
         )}
 
-        {activeView === "history" && (
-          <View style={styles.section}>
-            {/* Timeframe Selector tabs */}
-            <View style={styles.historyTabs}>
-              {[
-                { id: "today", label: "Today" },
-                { id: "7days", label: "7 Days" },
-                { id: "30days", label: "30 Days" }
-              ].map((tab) => (
-                <TouchableOpacity
-                  key={tab.id}
-                  style={[
-                    styles.historyTabBtn,
-                    historyFilter === tab.id && styles.historyTabBtnActive
-                  ]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                    setHistoryFilter(tab.id as any);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.historyTabText,
-                      historyFilter === tab.id && styles.historyTabTextActive
-                    ]}
-                  >
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Metrics cards grid */}
-            <View style={styles.metricsGrid}>
-              <View style={styles.metricItem}>
-                <Text style={styles.metricVal}>✅ {historyCompleted.length}</Text>
-                <Text style={styles.metricLbl}>Completed</Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Text style={styles.metricVal}>⏭️ {historySkipped.length}</Text>
-                <Text style={styles.metricLbl}>Skipped</Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Text style={styles.metricVal}>⭐ {historyPoints}</Text>
-                <Text style={styles.metricLbl}>Points</Text>
-              </View>
-            </View>
-
-            {/* Streak History Card */}
+        {/* ==========================================
+            TAB 3: ANALYTICS & GOAL HISTORY
+            ========================================== */}
+        {activeTab === "history" && (
+          <View style={styles.tabSection}>
+            {/* Short Stats Summary */}
             <View style={styles.glassCard}>
-              <Text style={styles.sectionTitle}>Streak Status</Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 }}>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 24 }}>🔥</Text>
-                  <Text style={{ fontFamily: Theme.fontFamily.bold, fontSize: 15, color: Colors.text, marginTop: 4 }}>
-                    {streakInfo?.currentStreak ?? 0} Days
-                  </Text>
-                  <Text style={{ fontFamily: Theme.fontFamily.medium, fontSize: 10, color: Colors.textSecondary }}>
-                    Current Streak
-                  </Text>
+              <Text style={styles.sectionTitle}>📊 Wellbeing Impact Analytics</Text>
+              <View style={styles.analyticsRow}>
+                <View style={styles.analyticBlock}>
+                  <Text style={styles.analyticVal}>{(weeklySummary as any)?.completionRate ? `${Math.round((weeklySummary as any).completionRate)}%` : "0%"}</Text>
+                  <Text style={styles.analyticLbl}>Completion Rate</Text>
                 </View>
-                <View style={{ width: 1.5, height: '80%', backgroundColor: '#EBE9FE', alignSelf: 'center' }} />
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 24 }}>🏆</Text>
-                  <Text style={{ fontFamily: Theme.fontFamily.bold, fontSize: 15, color: Colors.text, marginTop: 4 }}>
-                    {streakInfo?.longestStreak ?? 0} Days
-                  </Text>
-                  <Text style={{ fontFamily: Theme.fontFamily.medium, fontSize: 10, color: Colors.textSecondary }}>
-                    Longest Streak
-                  </Text>
+                <View style={styles.verticalDivider} />
+                <View style={styles.analyticBlock}>
+                  <Text style={styles.analyticVal}>{(goalHistory ?? []).filter(g => g.completed).length}</Text>
+                  <Text style={styles.analyticLbl}>All Completed</Text>
                 </View>
               </View>
             </View>
 
-            {/* Activity Feed */}
-            <View style={[styles.glassCard, { paddingBottom: 16 }]}>
-              <Text style={styles.sectionTitle}>Activity Feed</Text>
-              {filteredHistory.length === 0 ? (
-                <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-                  <Ionicons name="journal-outline" size={36} color={Colors.textMuted} style={{ marginBottom: 8 }} />
-                  <Text style={{ fontFamily: Theme.fontFamily.medium, fontSize: 12, color: Colors.textSecondary, textAlign: 'center' }}>
-                    No goals logged for this timeframe.
-                  </Text>
-                </View>
+            {/* Mood Before vs After completion logs */}
+            <View style={styles.glassCard}>
+              <Text style={styles.sectionTitle}>🧠 Feeling Shifts (After vs Before)</Text>
+              {goalHistory.filter(g => g.completed && g.feelingAfter).length === 0 ? (
+                <Text style={styles.emptyText}>Complete goals and track your feelings to view dynamic shifts here.</Text>
               ) : (
-                <View style={{ gap: 12, marginTop: 12 }}>
-                  {filteredHistory.map((g) => {
-                    const statusColor = g.completed ? "#10B981" : "#94A3B8";
-                    const statusText = g.completed ? "Completed" : "Skipped";
-                    
+                <View style={{ gap: 8, marginTop: 10 }}>
+                  {goalHistory.filter(g => g.completed && g.feelingAfter).slice(0, 5).map(g => {
+                    let feelIcon = "😐";
+                    if (g.feelingAfter === "better") feelIcon = "😊 Better";
+                    if (g.feelingAfter === "worse") feelIcon = "☹ Worse";
+                    if (g.feelingAfter === "same") feelIcon = "😐 Same";
+
                     return (
-                      <View key={g._id} style={styles.historyGoalCard}>
-                        <View style={{ flex: 1, paddingRight: 8 }}>
-                          <Text style={styles.historyGoalTitle}>
-                            {g.goalTitle}
-                          </Text>
-                          <Text style={styles.historyGoalDate}>
-                            {new Date(g.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                          <View style={[styles.statusBadge, { backgroundColor: statusColor + "15" }]}>
-                            <Text style={[styles.statusBadgeText, { color: statusColor }]}>{statusText}</Text>
-                          </View>
-                          {g.completed && (
-                            <Text style={{ fontFamily: Theme.fontFamily.bold, fontSize: 11, color: Colors.primary }}>
-                              +{g.points} pts
-                            </Text>
-                          )}
+                      <View key={g._id} style={styles.historyRowItem}>
+                        <Text style={styles.historyRowTitle}>🎯 {g.goalTitle}</Text>
+                        <View style={styles.feelingBadge}>
+                          <Text style={styles.feelingBadgeText}>{feelIcon}</Text>
                         </View>
                       </View>
                     );
@@ -743,82 +612,84 @@ export default function MicroGoalsScreen() {
               )}
             </View>
 
-            {/* Badges unlocked */}
-            <View style={[styles.glassCard, { marginTop: Theme.spacing.sm }]}>
-              <Text style={styles.sectionTitle}>Your Badges</Text>
-              <View style={styles.badgesGrid}>
-                {BADGES_DEFINITIONS.map((badge) => {
-                  const isEarned = badgesEarned?.some(b => b.badgeId === badge.id);
-                  return (
-                    <View key={badge.id} style={[styles.badgeCard, !isEarned && styles.badgeCardLocked]}>
-                      <View style={[styles.badgeIconBox, { backgroundColor: isEarned ? badge.color + "15" : "#E2E8F0" }]}>
-                        <Ionicons name={badge.icon as any} size={28} color={isEarned ? badge.color : Colors.textMuted} />
+            {/* Completed Logs Timeline */}
+            <View style={styles.glassCard}>
+              <Text style={styles.sectionTitle}>📝 History Timeline</Text>
+              {goalHistory.length === 0 ? (
+                <Text style={styles.emptyText}>Your goal timeline is empty. Start today!</Text>
+              ) : (
+                <View style={{ gap: 10, marginTop: 10 }}>
+                  {goalHistory.slice(0, 15).map(g => (
+                    <View key={g._id} style={styles.historyTimelineCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.historyGoalName, g.skipped && { textDecorationLine: 'line-through', color: '#94A3B8' }]}>
+                          {g.goalTitle}
+                        </Text>
+                        <Text style={styles.historyGoalDate}>
+                          {new Date(g.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        </Text>
                       </View>
-                      <Text style={[styles.badgeName, !isEarned && { color: Colors.textMuted }]}>{badge.name}</Text>
-                      <Text style={styles.badgeDesc}>{badge.desc}</Text>
+                      <View style={[styles.statusTag, { backgroundColor: g.completed ? "#D1FAE5" : "#F1F5F9" }]}>
+                        <Text style={[styles.statusTagText, { color: g.completed ? "#065F46" : "#64748B" }]}>
+                          {g.completed ? "COMPLETED" : g.skipped ? "SKIPPED" : "PENDING"}
+                        </Text>
+                      </View>
                     </View>
-                  );
-                })}
-              </View>
+                  ))}
+                </View>
+              )}
             </View>
           </View>
         )}
       </ScrollView>
 
-      {/* GOAL DETAILS MODAL */}
+      {/* DETAIL DRAWER / POPUP */}
       <Modal visible={isDetailsVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Goal Details</Text>
-              <TouchableOpacity onPress={() => setIsDetailsVisible(false)}>
-                <Ionicons name="close" size={24} color={Colors.text} />
-              </TouchableOpacity>
-            </View>
-
             {selectedGoal && (
-              <View style={styles.modalScroll}>
-                <Text style={styles.detailsGoalTitle}>🎯 {selectedGoal.title}</Text>
-                <Text style={styles.detailsGoalDesc}>{selectedGoal.description}</Text>
+              <View style={{ width: '100%' }}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Goal Details</Text>
+                  <TouchableOpacity onPress={() => setIsDetailsVisible(false)}>
+                    <Ionicons name="close" size={24} color={Colors.text} />
+                  </TouchableOpacity>
+                </View>
+                
+                <Text style={styles.detailsTitle}>🎯 {selectedGoal.goalTitle}</Text>
+                <Text style={styles.detailsDesc}>{selectedGoal.goalDescription}</Text>
+                
+                <View style={styles.detailCard}>
+                  <Ionicons name="leaf-outline" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.detailLabel}>Category</Text>
+                    <Text style={styles.detailVal}>{selectedGoal.category}</Text>
+                  </View>
+                </View>
 
-                <View style={styles.dividerHorizontal} />
-
-                <View style={styles.detailRow}>
+                <View style={styles.detailCard}>
                   <Ionicons name="help-circle-outline" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.detailLabel}>Why It Helps</Text>
-                    <Text style={styles.detailText}>{selectedGoal.whyItHelps}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Ionicons name="time-outline" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.detailLabel}>Estimated Time</Text>
-                    <Text style={styles.detailText}>{selectedGoal.estimatedTime}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Ionicons name="star-outline" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.detailLabel}>Reward Points</Text>
-                    <Text style={styles.detailText}>+{selectedGoal.points} Calm Points</Text>
+                    <Text style={styles.detailLabel}>Clinical Benefit</Text>
+                    <Text style={styles.detailVal}>Helps to calm cortisol and lower physical distress.</Text>
                   </View>
                 </View>
 
                 <View style={styles.modalActions}>
-                  <Button 
-                    title="Start Goal" 
-                    onPress={handleOpenSchedule} 
+                  <Button
+                    title="Schedule Reminder ⏰"
+                    onPress={handleOpenRelativeScheduling}
                     style={styles.actionBtn}
+                    variant="primary"
                   />
-                  <Button 
-                    title="Choose Another Goal" 
-                    variant="outline"
-                    onPress={() => setIsDetailsVisible(false)} 
+                  <Button
+                    title="Mark Completed Now"
+                    onPress={() => {
+                      setIsDetailsVisible(false);
+                      handleTriggerComplete(selectedGoal);
+                    }}
                     style={styles.actionBtnOutline}
-                    textStyle={{ color: Colors.primary }}
+                    variant="outline"
                   />
                 </View>
               </View>
@@ -827,94 +698,95 @@ export default function MicroGoalsScreen() {
         </View>
       </Modal>
 
-      {/* SCHEDULING MODAL */}
+      {/* SMART RELATIVE SCHEDULING MODAL */}
       <Modal visible={isScheduleVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Schedule Reminder</Text>
+              <Text style={styles.modalTitle}>Smart Schedule</Text>
               <TouchableOpacity onPress={() => setIsScheduleVisible(false)}>
                 <Ionicons name="close" size={24} color={Colors.text} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.schedulePrompt}>Great. When would you like to try this today?</Text>
-
-            <View style={styles.scheduleOptions}>
-              {["9:00 AM", "12:00 PM", "5:00 PM"].map((time) => (
-                <TouchableOpacity 
-                  key={time} 
-                  style={styles.timeOptionCard}
-                  onPress={() => handleScheduleTimeSelect(time)}
+            <Text style={styles.checkinSubtitle}>Choose relative delay from current time. Reminders will notify you automatically.</Text>
+            
+            <View style={styles.relativeGrid}>
+              {[
+                { label: "⚡ Start Now", min: 1 },
+                { label: "⏰ In 10 Minutes", min: 10 },
+                { label: "⏰ In 30 Minutes", min: 30 },
+                { label: "⏰ In 1 Hour", min: 60 },
+                { label: "🌅 This Evening", min: 180 },
+                { label: "🌙 Before Bed", min: 300 }
+              ].map(opt => (
+                <TouchableOpacity
+                  key={opt.label}
+                  style={styles.relativeBtn}
+                  onPress={() => handleScheduleSelect(opt.min)}
                 >
-                  <Ionicons name="time" size={20} color={Colors.primary} />
-                  <Text style={styles.timeOptionText}>{time}</Text>
+                  <Text style={styles.relativeBtnText}>{opt.label}</Text>
                 </TouchableOpacity>
               ))}
-              
-              <TouchableOpacity 
-                style={[styles.timeOptionCard, { borderColor: Colors.primary + "50" }]}
-                onPress={() => handleScheduleTimeSelect("8:00 PM")}
-              >
-                <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
-                <Text style={styles.timeOptionText}>Custom (8:00 PM)</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* MISSED GOAL SUPPORTIVE RECOVERY MODAL */}
-      <Modal visible={isMissedVisible} transparent animationType="slide">
+      {/* SNOOZE PANEL */}
+      <Modal visible={isSnoozeVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: '#EA580C' }]}>Gentle Pause</Text>
-              <TouchableOpacity onPress={handleCloseMissed}>
+              <Text style={styles.modalTitle}>Snooze Reminder</Text>
+              <TouchableOpacity onPress={() => setIsSnoozeVisible(false)}>
                 <Ionicons name="close" size={24} color={Colors.text} />
               </TouchableOpacity>
             </View>
 
-            {missedGoalItem && (
-              <View style={{ width: '100%', alignItems: 'center' }}>
-                <Ionicons name="cafe-outline" size={44} color="#EA580C" style={{ marginBottom: Theme.spacing.md }} />
-                <Text style={styles.missedPrompt}>"{missedMsg}"</Text>
-                
-                <Text style={styles.missedGoalTitle}>Goal: {missedGoalItem.goalTitle}</Text>
+            <Text style={styles.checkinSubtitle}>Delay this action for a short break:</Text>
+            
+            <View style={styles.relativeGrid}>
+              {[
+                { label: "Snooze 10m", min: 10 },
+                { label: "Snooze 30m", min: 30 },
+                { label: "Snooze 1h", min: 60 }
+              ].map(opt => (
+                <TouchableOpacity
+                  key={opt.label}
+                  style={styles.relativeBtn}
+                  onPress={() => handleSnoozeSelect(opt.min)}
+                >
+                  <Text style={styles.relativeBtnText}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
-                <View style={styles.modalActions}>
-                  <Button 
-                    title="Try Again" 
-                    onPress={() => handleRescheduleGoal(missedGoalItem._id, 2)} 
-                    style={styles.actionBtn}
-                  />
-                  <Button 
-                    title="Do Breathing Exercise" 
-                    onPress={() => {
-                      setIsMissedVisible(false);
-                      setDismissedMissedGoalIds(prev => [...prev, missedGoalItem._id]);
-                      setMissedGoalItem(null);
-                      router.push("/(auth)/tools/jpmr"); // Redirect to relaxation
-                    }} 
-                    style={styles.actionBtn}
-                  />
-                  <Button 
-                    title="Reschedule Time" 
-                    variant="outline"
-                    onPress={() => handleRescheduleCustom(missedGoalItem._id)} 
-                    style={styles.actionBtnOutline}
-                    textStyle={{ color: Colors.primary }}
-                  />
-                  <Button 
-                    title="Skip Today" 
-                    variant="outline"
-                    onPress={() => handleSkipGoal(missedGoalItem._id)} 
-                    style={styles.actionBtnOutline}
-                    textStyle={{ color: '#EF4444' }}
-                  />
-                </View>
-              </View>
-            )}
+      {/* POST-COMPLETION FEELING INPUT */}
+      <Modal visible={isFeelingVisible} transparent animationType="fade">
+        <View style={styles.feelingOverlay}>
+          <View style={styles.feelingModalContent}>
+            <Text style={styles.feelingPromptTitle}>Reflective Moment</Text>
+            <Text style={styles.feelingPromptDesc}>How do you feel after completing this wellness action?</Text>
+            
+            <View style={styles.feelingActionRow}>
+              {[
+                { label: "😊 Better", val: "better" },
+                { label: "😐 Same", val: "same" },
+                { label: "☹ Worse", val: "worse" }
+              ].map(opt => (
+                <TouchableOpacity
+                  key={opt.val}
+                  style={styles.feelingCardOption}
+                  onPress={() => handleCompleteWithFeeling(opt.val)}
+                >
+                  <Text style={styles.feelingCardOptionText}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         </View>
       </Modal>
@@ -922,26 +794,32 @@ export default function MicroGoalsScreen() {
       {/* CELEBRATION MODAL */}
       <Modal visible={isCelebrationVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.celebrationWrapper}>
-              <Ionicons name="sparkles" size={54} color="#F59E0B" style={{ marginBottom: Theme.spacing.md }} />
-              <Text style={styles.celebrationTitle}>Goal Completed!</Text>
-              <Text style={styles.celebrationPoints}>+{completedPoints} Calm Points</Text>
+          <View style={styles.celebrationContent}>
+            <Ionicons name="sparkles" size={60} color="#F59E0B" style={{ marginBottom: 12 }} />
+            <Text style={styles.celebrationTitle}>Brilliant Job! 🎉</Text>
+            <Text style={styles.celebrationMessage}>
+              You earned <Text style={{ fontWeight: 'bold', color: Colors.primary }}>+{rewardData?.xp} XP</Text> and <Text style={{ fontWeight: 'bold', color: '#D97706' }}>+{rewardData?.coins} Coins</Text>!
+            </Text>
 
-              <Text style={styles.celebrationSubtitle}>"{celebrationMsg}"</Text>
-
-              <View style={styles.summaryResultCard}>
-                <Text style={styles.resultPercentage}>{streakInfo?.currentStreak ?? 1} Days</Text>
-                <Text style={styles.resultLabel}>Current Streak</Text>
-                <Text style={styles.resultVal}>Total: {totalPoints} Points</Text>
+            {rewardData?.levelUp && (
+              <View style={styles.levelUpNotice}>
+                <Ionicons name="trophy" size={24} color="#F59E0B" style={{ marginRight: 8 }} />
+                <Text style={styles.levelUpText}>LEVELED UP! Reached Level {rewardData.newLevel}</Text>
               </View>
+            )}
 
-              <Button 
-                title="Awesome" 
-                onPress={() => setIsCelebrationVisible(false)} 
-                style={styles.actionBtn}
-              />
-            </View>
+            {rewardData?.perfectDay && (
+              <View style={styles.perfectDayNotice}>
+                <Ionicons name="star" size={24} color="#10B981" style={{ marginRight: 8 }} />
+                <Text style={styles.perfectDayText}>PERFECT DAY BONUS! +100 XP</Text>
+              </View>
+            )}
+
+            <Button
+              title="Awesome"
+              onPress={() => setIsCelebrationVisible(false)}
+              style={[styles.actionBtn, { marginTop: 20 }]}
+            />
           </View>
         </View>
       </Modal>
@@ -953,7 +831,6 @@ export default function MicroGoalsScreen() {
           </View>
         </View>
       )}
-
     </View>
   );
 }
@@ -991,71 +868,190 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
   },
-  glassCard: {
+  gamificationHub: {
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 24,
+    padding: Theme.spacing.md + 2,
+    width: '100%',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.7)',
+    ...Theme.shadows.tertiary,
+    marginBottom: Theme.spacing.md,
+  },
+  xpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: Theme.spacing.md,
+  },
+  levelBadge: {
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 10,
+  },
+  levelText: {
+    color: Colors.white,
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 12,
+  },
+  xpTrack: {
+    flex: 1,
+    height: 24,
+    backgroundColor: '#F3E8FF',
+    borderRadius: 12,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  xpBar: {
+    height: '100%',
+    backgroundColor: '#8B5CF6',
+    position: 'absolute',
+    left: 0,
+    top: 0,
+  },
+  xpProgressLabel: {
+    alignSelf: 'center',
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 10,
+    color: Colors.text,
+    zIndex: 1,
+  },
+  economyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+  },
+  ecoItem: {
+    alignItems: 'center',
+  },
+  ecoIcon: {
+    fontSize: 22,
+  },
+  ecoVal: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 14,
+    color: Colors.text,
+    marginTop: 2,
+  },
+  ecoLbl: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 9,
+    color: Colors.textSecondary,
+  },
+  verticalDivider: {
+    width: 1,
+    height: '70%',
+    backgroundColor: '#E2E8F0',
+    alignSelf: 'center',
+  },
+  tabsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    borderRadius: 20,
+    padding: 4,
+    marginBottom: Theme.spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 38,
+  },
+  tabButtonActive: {
+    backgroundColor: Colors.primary,
+  },
+  tabButtonText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  tabButtonTextActive: {
+    color: Colors.white,
+  },
+  tabSection: {
+    width: '100%',
+    gap: Theme.spacing.md,
+  },
+  glassCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 24,
     padding: Theme.spacing.lg,
     width: '100%',
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.7)',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 4,
+    ...Theme.shadows.tertiary,
     marginBottom: Theme.spacing.md,
   },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingVertical: Theme.spacing.xs,
-  },
-  statBox: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statIcon: {
-    fontSize: 22,
+  checkinTitle: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 16,
+    color: Colors.text,
     marginBottom: 4,
   },
-  statVal: {
+  checkinSubtitle: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: Theme.spacing.md,
+  },
+  moodGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  moodBtn: {
+    backgroundColor: '#FAF5FF',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E8DFFA',
+    paddingVertical: Theme.spacing.xs + 2,
+    paddingHorizontal: Theme.spacing.sm,
+  },
+  moodText: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.md,
+    fontSize: 12,
     color: Colors.text,
   },
-  statLbl: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: 10,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  dividerVertical: {
-    width: 1.5,
-    height: '80%',
-    backgroundColor: '#EBE9FE',
-    alignSelf: 'center',
-  },
-  progressContainer: {
-    marginTop: Theme.spacing.md,
+  moodBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAF5FF',
+    borderWidth: 1.5,
+    borderColor: '#E8DFFA',
+    padding: Theme.spacing.md,
+    borderRadius: 18,
     width: '100%',
-    borderTopWidth: 1,
-    borderTopColor: '#EBE9FE',
-    paddingTop: Theme.spacing.md,
   },
-  progressHeader: {
+  moodBannerText: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 12,
+    color: Colors.text,
+  },
+  progressBarRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    width: '100%',
+    marginBottom: Theme.spacing.xs,
   },
-  progressLabel: {
+  progressTitle: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: Colors.text,
   },
-  progressPct: {
+  progressValText: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.primary,
   },
   progressTrack: {
@@ -1068,644 +1064,478 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: Colors.primary,
   },
-  bannerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Theme.spacing.md,
-    borderRadius: 16,
-    borderWidth: 1,
-    width: '100%',
-    marginBottom: Theme.spacing.md,
-  },
-  bannerText: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: 11,
-    flex: 1,
-  },
-  viewTabs: {
-    flexDirection: 'row',
-    width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    borderRadius: 20,
-    padding: 4,
-    marginBottom: Theme.spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  viewTabBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  viewTabBtnActive: {
-    backgroundColor: Colors.primary,
-  },
-  viewTabText: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.sm,
-    color: Colors.textSecondary,
-  },
-  viewTabTextActive: {
-    color: Colors.white,
-  },
-  section: {
-    width: '100%',
-    gap: Theme.spacing.md,
-  },
-  generateCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderRadius: 24,
-    padding: Theme.spacing.lg,
-    width: '100%',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.7)',
-    alignItems: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 3,
-  },
   sectionTitle: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.md,
+    fontSize: 15,
     color: Colors.text,
-    marginBottom: Theme.spacing.xs,
     width: '100%',
+    marginBottom: 4,
   },
-  generateDesc: {
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
     fontFamily: Theme.fontFamily.medium,
-    fontSize: Theme.fontSize.sm,
+    fontSize: 12,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: Theme.spacing.lg,
-    lineHeight: 20,
+    marginTop: 8,
   },
-  actionBtn: {
-    width: '100%',
-    borderRadius: Theme.borderRadius.lg,
-    height: 56,
-  },
-  actionBtnOutline: {
-    width: '100%',
-    borderRadius: Theme.borderRadius.lg,
-    height: 56,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    backgroundColor: 'transparent',
-    marginTop: 10,
-  },
-  goalsList: {
-    width: '100%',
-    gap: 12,
-  },
-  goalItemCard: {
+  goalCard: {
     flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: Colors.white,
     padding: Theme.spacing.md,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#EBE9FE',
     ...Theme.shadows.tertiary,
+    alignItems: 'center',
   },
-  goalItemCompleted: {
-    opacity: 0.65,
+  goalCardCompleted: {
+    opacity: 0.6,
     backgroundColor: '#F8FAFC',
   },
-  checkCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  challengeGoalCard: {
+    borderColor: '#F59E0B',
+    borderWidth: 1.8,
+  },
+  checkbox: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 2,
     borderColor: '#CBD5E1',
+    marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Theme.spacing.md,
   },
-  checkCircleActive: {
+  checkboxActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
-  goalItemTitle: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.sm + 1,
-    color: Colors.text,
-    marginBottom: 2,
+  challengeBadge: {
+    backgroundColor: '#D97706',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginRight: 6,
   },
-  goalTitleCompleted: {
+  challengeBadgeText: {
+    color: '#FFF',
+    fontSize: 8,
+    fontFamily: Theme.fontFamily.bold,
+  },
+  diffIndicator: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  diffIndicatorText: {
+    fontSize: 8,
+    fontFamily: Theme.fontFamily.bold,
+  },
+  goalTitleText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 13,
+    color: Colors.text,
+    marginTop: 2,
+  },
+  goalTextCompleted: {
     textDecorationLine: 'line-through',
   },
-  goalItemDesc: {
+  goalDescText: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 10,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  scheduledRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  scheduledText: {
+    fontSize: 9,
+    color: '#6D28D9',
+    fontFamily: Theme.fontFamily.bold,
+  },
+  xpRewardBadge: {
+    backgroundColor: '#FAF5FF',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#E8DFFA',
+  },
+  xpRewardText: {
+    color: Colors.primary,
+    fontSize: 10,
+    fontFamily: Theme.fontFamily.bold,
+  },
+  smallCircleButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FAF5FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E8DFFA',
+  },
+  missionProgressBox: {
+    width: '100%',
+    marginBottom: 8,
+  },
+  missionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  missionLabelText: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: 11,
-    color: Colors.textSecondary,
-    lineHeight: 16,
+    color: Colors.text,
   },
-  scheduledLabel: {
+  missionProgressVal: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 10,
+    fontSize: 11,
     color: Colors.primary,
-    marginTop: 4,
   },
-  rewardContainer: {
+  missionTrack: {
+    height: 6,
+    backgroundColor: '#FAF9FF',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  missionBar: {
+    height: '100%',
+    backgroundColor: Colors.primary,
+  },
+  missionRewardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginLeft: Theme.spacing.sm,
-    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingTop: Theme.spacing.xs + 2,
+    marginTop: 4,
   },
   rewardText: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 11,
-    color: Colors.primary,
+    color: '#D97706',
   },
-  scheduleBtn: {
-    padding: 6,
+  completedMissionTag: {
+    backgroundColor: '#10B981',
     borderRadius: 8,
-    backgroundColor: '#F3F0FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  communityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    borderRadius: 20,
-    padding: Theme.spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-    gap: 12,
-  },
-  communityIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: Colors.primary + "10",
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  communityTitle: {
+  completedTagText: {
+    color: '#FFF',
+    fontSize: 8,
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 13,
-    color: Colors.text,
-    marginBottom: 2,
   },
-  communityText: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: 11,
-    color: Colors.textSecondary,
-    lineHeight: 16,
-  },
-  weeklySummaryRow: {
+  monthlyRewardBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
-    marginVertical: Theme.spacing.md,
-  },
-  weeklySummaryBox: {
-    flex: 1,
     alignItems: 'center',
-  },
-  weeklySummaryVal: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: 24,
-    color: Colors.primary,
-  },
-  weeklySummaryLbl: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  insightsList: {
     borderTopWidth: 1,
-    borderTopColor: '#EBE9FE',
-    paddingTop: Theme.spacing.md,
-    width: '100%',
-    gap: 8,
-  },
-  insightTitle: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.sm,
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  insightText: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: 12,
-    color: Colors.textSecondary,
-    lineHeight: 18,
+    borderTopColor: '#E2E8F0',
+    paddingTop: Theme.spacing.xs + 2,
+    marginTop: 4,
   },
   badgesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: Theme.spacing.sm,
     justifyContent: 'space-between',
-    marginTop: Theme.spacing.sm,
   },
-  badgeCard: {
-    width: (width - 70) / 2,
-    backgroundColor: '#FAF9FF',
-    borderRadius: 20,
-    padding: Theme.spacing.md,
+  badgeItemBox: {
+    width: (width - 76) / 3,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E8E5FF',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
+    marginVertical: 4,
   },
-  badgeCardLocked: {
-    opacity: 0.5,
+  badgeLocked: {
+    opacity: 0.4,
   },
-  badgeIconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 18,
+  badgeIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  badgeName: {
+  badgeNameText: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.sm,
+    fontSize: 9,
     color: Colors.text,
     textAlign: 'center',
   },
-  badgeDesc: {
+  badgeDescText: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 7,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 1,
+  },
+  analyticsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+  },
+  analyticBlock: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  analyticVal: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 20,
+    color: Colors.primary,
+  },
+  analyticLbl: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: 10,
     color: Colors.textSecondary,
-    textAlign: 'center',
+  },
+  historyRowItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Theme.spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FAF9FF',
+  },
+  historyRowTitle: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 11,
+    color: Colors.text,
+  },
+  feelingBadge: {
+    backgroundColor: '#FAF5FF',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#E8DFFA',
+  },
+  feelingBadgeText: {
+    fontSize: 9,
+    fontFamily: Theme.fontFamily.bold,
+    color: Colors.primary,
+  },
+  historyTimelineCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: Theme.spacing.md,
+  },
+  historyGoalName: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 11,
+    color: Colors.text,
+  },
+  historyGoalDate: {
+    fontSize: 9,
+    color: Colors.textSecondary,
     marginTop: 2,
+  },
+  statusTag: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  statusTagText: {
+    fontSize: 8,
+    fontFamily: Theme.fontFamily.bold,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: Theme.spacing.xl,
-    maxHeight: '80%',
-    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: Theme.spacing.lg,
+    width: '100%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EBE9FE',
-    paddingBottom: Theme.spacing.sm,
     marginBottom: Theme.spacing.md,
   },
   modalTitle: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.lg,
+    fontSize: 16,
     color: Colors.text,
   },
-  modalScroll: {
-    width: '100%',
-  },
-  detailsGoalTitle: {
+  detailsTitle: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.lg,
-    color: Colors.text,
-    marginBottom: 6,
+    fontSize: 18,
+    color: Colors.primary,
+    marginBottom: Theme.spacing.xs,
   },
-  detailsGoalDesc: {
+  detailsDesc: {
     fontFamily: Theme.fontFamily.medium,
-    fontSize: Theme.fontSize.sm,
+    fontSize: 12,
     color: Colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 18,
     marginBottom: Theme.spacing.md,
   },
-  dividerHorizontal: {
-    height: 1,
-    backgroundColor: '#EBE9FE',
-    width: '100%',
-    marginVertical: Theme.spacing.md,
-  },
-  detailRow: {
+  detailCard: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: Theme.spacing.md,
-    width: '100%',
+    alignItems: 'center',
+    backgroundColor: '#F9F8FF',
+    borderRadius: 16,
+    padding: Theme.spacing.md,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#EDE9FE',
   },
   detailLabel: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 12,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2,
+    fontSize: 9,
+    color: Colors.textSecondary,
   },
-  detailText: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: Theme.fontSize.sm,
+  detailVal: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 11,
     color: Colors.text,
-    lineHeight: 18,
+    marginTop: 2,
   },
   modalActions: {
+    marginTop: Theme.spacing.md,
     gap: 8,
-    width: '100%',
-    marginTop: Theme.spacing.sm,
   },
-  schedulePrompt: {
+  relativeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Theme.spacing.sm,
+    marginTop: Theme.spacing.xs,
+  },
+  relativeBtn: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#F9F8FF',
+    borderWidth: 1.5,
+    borderColor: '#EDE9FE',
+    borderRadius: 18,
+    paddingVertical: Theme.spacing.md,
+    alignItems: 'center',
+  },
+  relativeBtnText: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.md,
+    fontSize: 11,
     color: Colors.text,
+  },
+  feelingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  feelingModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    padding: Theme.spacing.lg,
+    width: width - 48,
+    alignItems: 'center',
+  },
+  feelingPromptTitle: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 18,
+    color: Colors.primary,
+    marginBottom: 6,
+  },
+  feelingPromptDesc: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 12,
+    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: Theme.spacing.lg,
   },
-  scheduleOptions: {
-    width: '100%',
-    gap: Theme.spacing.md,
-    marginBottom: Theme.spacing.sm,
-  },
-  timeOptionCard: {
+  feelingActionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FAF9FF',
-    borderWidth: 1.5,
-    borderColor: '#EBE9FE',
-    borderRadius: 16,
-    padding: Theme.spacing.md,
-    gap: 12,
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: Theme.spacing.xs,
   },
-  timeOptionText: {
+  feelingCardOption: {
+    flex: 1,
+    backgroundColor: '#FAF5FF',
+    borderWidth: 1.5,
+    borderColor: '#EDE9FE',
+    borderRadius: 16,
+    paddingVertical: Theme.spacing.md,
+    alignItems: 'center',
+  },
+  feelingCardOptionText: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.md,
+    fontSize: 12,
     color: Colors.text,
   },
-  celebrationWrapper: {
+  celebrationContent: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: Theme.spacing.lg,
     width: '100%',
     alignItems: 'center',
   },
   celebrationTitle: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 22,
-    color: Colors.text,
-    marginBottom: 4,
+    fontSize: 20,
+    color: '#D97706',
+    marginBottom: Theme.spacing.xs,
   },
-  celebrationPoints: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: 18,
-    color: Colors.primary,
-    marginBottom: Theme.spacing.md,
-  },
-  celebrationSubtitle: {
+  celebrationMessage: {
     fontFamily: Theme.fontFamily.medium,
-    fontSize: Theme.fontSize.sm,
-    color: Colors.textSecondary,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginBottom: Theme.spacing.lg,
-    lineHeight: 20,
-    paddingHorizontal: Theme.spacing.md,
-  },
-  summaryResultCard: {
-    backgroundColor: 'rgba(244, 243, 255, 0.5)',
-    borderRadius: 20,
-    padding: Theme.spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    borderWidth: 1,
-    borderColor: 'rgba(235, 233, 254, 0.8)',
-    marginBottom: Theme.spacing.xl,
-  },
-  resultPercentage: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: 36,
-    color: Colors.primary,
-  },
-  resultLabel: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginBottom: Theme.spacing.sm,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  resultVal: {
-    fontFamily: Theme.fontFamily.bold,
     fontSize: 13,
-    color: Colors.text,
-  },
-  missedPrompt: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: Theme.fontSize.sm + 1,
     color: Colors.textSecondary,
-    fontStyle: 'italic',
     textAlign: 'center',
-    marginBottom: Theme.spacing.md,
-    lineHeight: 22,
-    paddingHorizontal: Theme.spacing.sm,
+    lineHeight: 20,
   },
-  missedGoalTitle: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.sm + 1,
-    color: Colors.text,
-    marginBottom: Theme.spacing.lg,
-  },
-  selectionContainer: {
-    width: '100%',
-    gap: Theme.spacing.md,
-  },
-  selectionHeader: {
-    width: '100%',
-    marginBottom: Theme.spacing.sm,
-  },
-  selectionTitle: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.md + 2,
-    color: Colors.text,
-  },
-  selectionSubtitle: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: Theme.fontSize.xs + 1,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  optionsList: {
-    width: '100%',
-    gap: 16,
-  },
-  optionCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: Theme.spacing.lg,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  optionCardSelected: {
-    borderColor: Colors.primary,
-    borderWidth: 2,
-    backgroundColor: '#FAF9FF',
-  },
-  optionCardHeader: {
+  levelUpNotice: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Theme.spacing.sm,
-  },
-  categoryIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pointsBadge: {
-    backgroundColor: Colors.primary + "15",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-  },
-  pointsBadgeText: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: 11,
-    color: Colors.primary,
-  },
-  optionCardTitle: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.md,
-    color: Colors.text,
-    marginBottom: 6,
-  },
-  optionCardDesc: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: 12,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-    marginBottom: Theme.spacing.md,
-  },
-  optionFooter: {
-    gap: 6,
-    width: '100%',
-  },
-  optionFooterText: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: 11,
-    color: Colors.textSecondary,
-    lineHeight: 15,
-  },
-  selectionActions: {
-    gap: 10,
-    width: '100%',
+    backgroundColor: '#FAF5FF',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+    padding: Theme.spacing.md,
+    borderRadius: 18,
     marginTop: Theme.spacing.md,
   },
-  addGoalCard: {
+  levelUpText: {
+    color: '#D97706',
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 12,
+  },
+  perfectDayNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.white,
-    padding: Theme.spacing.md,
-    borderRadius: 20,
+    backgroundColor: '#ECFDF5',
     borderWidth: 1.5,
-    borderColor: Colors.primary,
-    borderStyle: 'dashed',
-    gap: 8,
-    marginTop: Theme.spacing.xs,
+    borderColor: '#10B981',
+    padding: Theme.spacing.md,
+    borderRadius: 18,
+    marginTop: Theme.spacing.sm,
+  },
+  perfectDayText: {
+    color: '#065F46',
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 12,
+  },
+  actionBtn: {
     width: '100%',
   },
-  addGoalCardText: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.sm,
-    color: Colors.primary,
-  },
-  historyTabs: {
-    flexDirection: 'row',
-    backgroundColor: '#F1F0FB',
-    borderRadius: 16,
-    padding: 4,
-    marginBottom: Theme.spacing.md,
-  },
-  historyTabBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  historyTabBtnActive: {
-    backgroundColor: Colors.white,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  historyTabText: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: Theme.fontSize.sm,
-    color: Colors.textSecondary,
-  },
-  historyTabTextActive: {
-    fontFamily: Theme.fontFamily.bold,
-    color: Colors.primary,
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: Theme.spacing.md,
-  },
-  metricItem: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    borderRadius: 20,
-    padding: Theme.spacing.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  metricVal: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: 20,
-    color: Colors.text,
-  },
-  metricLbl: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-  historyGoalCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    padding: Theme.spacing.md,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EBE9FE',
-  },
-  historyGoalTitle: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.sm,
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  historyGoalDate: {
-    fontFamily: Theme.fontFamily.medium,
-    fontSize: 10,
-    color: Colors.textMuted,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  statusBadgeText: {
-    fontFamily: Theme.fontFamily.bold,
-    fontSize: 10,
+  actionBtnOutline: {
+    width: '100%',
   },
 });

@@ -87,13 +87,17 @@ export default function RootLayout() {
 function ConvexAuthWrapper() {
   const { isLoading, isAuthenticated, token } = useAppAuth();
 
+  const fetchAccessToken = React.useCallback(async () => {
+    return token;
+  }, [token]);
+
   const useAuth = React.useCallback(() => {
     return {
       isLoading,
       isAuthenticated,
-      fetchAccessToken: async () => token,
+      fetchAccessToken,
     };
-  }, [isLoading, isAuthenticated, token]);
+  }, [isLoading, isAuthenticated, fetchAccessToken]);
 
   return (
     <ConvexProviderWithAuth client={convex} useAuth={useAuth}>

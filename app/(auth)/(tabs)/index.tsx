@@ -249,29 +249,29 @@ export default function DashboardScreen() {
     }, [user?.id])
   );
 
-  const appUser = useQuery(api.users.getByClerkId, {
-    clerkId: user?.id ?? "",
-  });
+  const appUser = useQuery(api.users.getByClerkId, user?.id ? {
+    clerkId: user.id,
+  } : "skip");
 
-  const latestScreening = useQuery(api.screening.getLatest, {
-    userId: user?.id ?? "",
-  });
+  const latestScreening = useQuery(api.screening.getLatest, user?.id ? {
+    userId: user.id,
+  } : "skip");
 
-  const latestTriage = useQuery(api.triage.getLatest, {
-    userId: user?.id ?? "",
-  });
+  const latestTriage = useQuery(api.triage.getLatest, user?.id ? {
+    userId: user.id,
+  } : "skip");
 
-  const recentEmotions = useQuery(api.emotionLogs.getRecent, {
-    userId: user?.id ?? "",
-  });
+  const recentEmotions = useQuery(api.emotionLogs.getRecent, user?.id ? {
+    userId: user.id,
+  } : "skip");
 
-  const recentJpmr = useQuery(api.jpmrLogs.getRecent, {
-    userId: user?.id ?? "",
-  });
+  const recentJpmr = useQuery(api.jpmrLogs.getRecent, user?.id ? {
+    userId: user.id,
+  } : "skip");
 
-  const reinforcement = useQuery(api.reinforcement.generatePositiveMessage, {
-    userId: user?.id ?? "",
-  });
+  const reinforcement = useQuery(api.reinforcement.generatePositiveMessage, user?.id ? {
+    userId: user.id,
+  } : "skip");
 
   const appointments = useQuery(api.appointments.getTwoWayAppointmentsForPatient, user?.id ? { userId: user.id } : "skip");
 

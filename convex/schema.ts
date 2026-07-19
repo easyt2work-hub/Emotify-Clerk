@@ -17,6 +17,10 @@ export default defineSchema({
     lockoutUntil: v.optional(v.number()),
     createdAt: v.optional(v.number()), // For backward compatibility with existing DB records
     biometricToken: v.optional(v.string()),
+    xp: v.optional(v.number()),
+    level: v.optional(v.number()),
+    coins: v.optional(v.number()),
+    lastStreakFreezeUsed: v.optional(v.number()),
 
     // Existing fields made optional for backward compatibility
     clerkId: v.optional(v.string()),
@@ -139,9 +143,21 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
     skipped: v.boolean(),
     createdAt: v.number(),
+    cbtSessionId: v.optional(v.string()),
+    estimatedMinutes: v.optional(v.number()),
+    targetEmotion: v.optional(v.string()),
+    targetBehaviour: v.optional(v.string()),
+    aiReason: v.optional(v.string()),
+    status: v.optional(v.string()), // "pending" | "completed" | "skipped" | "rescheduled"
     // Legacy fields for backward compatibility
     goal: v.optional(v.string()),
     date: v.optional(v.string()),
+    feelingAfter: v.optional(v.string()),
+    reminderStatus: v.optional(v.string()),
+    snoozeCount: v.optional(v.number()),
+    isDailyChallenge: v.optional(v.boolean()),
+    xpAwarded: v.optional(v.number()),
+    coinsAwarded: v.optional(v.number()),
   }).index("by_userId", ["userId"]),
 
   points: defineTable({
@@ -162,6 +178,8 @@ export default defineSchema({
     currentStreak: v.number(),
     longestStreak: v.number(),
     lastCompletionDate: v.string(), // YYYY-MM-DD
+    freezeCount: v.optional(v.number()),
+    streakFrozenToday: v.optional(v.boolean()),
   }).index("by_userId", ["userId"]),
 
   reframes: defineTable({
@@ -233,4 +251,147 @@ export default defineSchema({
   })
     .index("by_userId", ["userId"])
     .index("by_createdAt", ["createdAt"]),
+
+  companionMessages: defineTable({
+    messageId: v.string(),
+    userId: v.string(),
+    role: v.string(), // "user" | "assistant"
+    content: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_and_createdAt", ["userId", "createdAt"]),
+
+  rateLimits: defineTable({
+    key: v.string(), // "userId:action"
+    count: v.number(),
+    windowStart: v.number(),
+  }).index("by_key", ["key"]),
+
+  auditLogs: defineTable({
+    userId: v.optional(v.string()),
+    action: v.string(),
+    details: v.optional(v.string()),
+    timestamp: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_action", ["action"]),
+
+  dailyCheckins: defineTable({
+    userId: v.string(),
+    dateStr: v.string(), // "YYYY-MM-DD"
+    mood: v.string(),
+    createdAt: v.number(),
+  }).index("by_userId_and_dateStr", ["userId", "dateStr"]),
+
+  weeklyMissions: defineTable({
+    userId: v.string(),
+    weekStart: v.string(), // "YYYY-MM-DD" representing the Monday
+    goalCountTarget: v.number(),
+    goalCountCurrent: v.number(),
+    jpmrTarget: v.number(),
+    jpmrCurrent: v.number(),
+    journalTarget: v.number(),
+    journalCurrent: v.number(),
+    completed: v.boolean(),
+    xpReward: v.number(),
+    coinsReward: v.number(),
+  }).index("by_userId_and_weekStart", ["userId", "weekStart"]),
+
+  monthlyChallenges: defineTable({
+    userId: v.string(),
+    monthStr: v.string(), // "YYYY-MM"
+    goalCountTarget: v.number(),
+    goalCountCurrent: v.number(),
+    streakTarget: v.number(),
+    streakCurrent: v.number(),
+    journalTarget: v.number(),
+    journalCurrent: v.number(),
+    completed: v.boolean(),
+    badgeRewardId: v.string(),
+    badgeRewardName: v.string(),
+  }).index("by_userId_and_monthStr", ["userId", "monthStr"]),
+
+  cbtSessions: defineTable({
+    userId: v.string(),
+    situation: v.optional(v.string()),
+    automaticThought: v.optional(v.string()),
+    emotion: v.optional(v.string()),
+    emotionBefore: v.optional(v.number()),
+    conversation: v.array(
+      v.object({
+        role: v.string(),
+        content: v.string(),
+        timestamp: v.number(),
+      })
+    ),
+    thinkingStyle: v.optional(v.string()),
+    clarificationQuestion: v.optional(v.string()),
+    clarificationOptions: v.optional(v.array(v.string())),
+    clarificationAnswer: v.optional(v.string()),
+    cbtDistortion: v.optional(v.string()),
+    challengeQuestions: v.optional(v.array(v.string())),
+    challengeAnswers: v.optional(v.array(v.string())),
+    stepIndex: v.number(),
+    reflection: v.optional(v.string()),
+    balancedThoughtsOptions: v.optional(v.array(v.string())),
+    balancedThought: v.optional(v.string()),
+    beliefScore: v.optional(v.number()),
+    emotionAfter: v.optional(v.number()),
+    recommendedGoal: v.optional(
+      v.object({
+        id: v.string(),
+        title: v.string(),
+        description: v.string(),
+        category: v.string(),
+        difficulty: v.string(),
+        estimatedMinutes: v.optional(v.number()),
+        points: v.optional(v.number()),
+        icon: v.optional(v.string()),
+        targetEmotion: v.optional(v.string()),
+        targetBehaviour: v.optional(v.string()),
+        aiReason: v.optional(v.string()),
+        completed: v.optional(v.boolean()),
+        skipped: v.optional(v.boolean()),
+        whyItHelps: v.optional(v.string()),
+        estimatedTime: v.optional(v.string()),
+      })
+    ),
+    recommendedGoals: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          title: v.string(),
+          description: v.string(),
+          category: v.string(),
+          difficulty: v.string(),
+          estimatedMinutes: v.optional(v.number()),
+          points: v.optional(v.number()),
+          icon: v.optional(v.string()),
+          targetEmotion: v.optional(v.string()),
+          targetBehaviour: v.optional(v.string()),
+          aiReason: v.optional(v.string()),
+          completed: v.optional(v.boolean()),
+          skipped: v.optional(v.boolean()),
+          whyItHelps: v.optional(v.string()),
+          estimatedTime: v.optional(v.string()),
+        })
+      )
+    ),
+    selectedGoalIds: v.optional(v.array(v.string())),
+    goalCompletion: v.optional(v.boolean()),
+    timestamp: v.number(),
+    riskFlags: v.optional(v.array(v.string())),
+    sessionStatus: v.string(), // "active" | "completed" | "safety_mode" | "support_mode" | "paused"
+    currentStep: v.string(), // "understanding" | "clarification" | "guided_discovery" | "reflection" | "balanced_thought" | "belief" | "emotion_after" | "recovery_coach" | "completed" | "safety_mode" | "support_mode"
+  })
+    .index("by_userId", ["userId"])
+    .index("by_sessionStatus", ["sessionStatus"])
+    .index("by_timestamp", ["timestamp"]),
+
+  apiKeys: defineTable({
+    key: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  }).index("by_key", ["key"]),
 });

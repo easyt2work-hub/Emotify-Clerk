@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, ActivityIndicator, ViewStyle, TextStyle, Pressable, Animated, Text } from 'react-native';
+import { StyleSheet, ActivityIndicator, ViewStyle, TextStyle, Pressable, Animated, Text, StyleProp } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useThemeColors } from '@/context/MoodThemeContext';
 import { Theme } from '@/constants/Theme';
@@ -12,8 +12,8 @@ interface ButtonProps {
   loading?: boolean;
   disabled?: boolean;
   icon?: React.ReactNode;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
   testID?: string;
 }
 

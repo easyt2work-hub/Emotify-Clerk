@@ -18,13 +18,13 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
 
-  const appUser = useQuery(api.users.getByClerkId, {
-    clerkId: user?.id ?? "",
-  });
+  const appUser = useQuery(api.users.getByClerkId, user?.id ? {
+    clerkId: user.id,
+  } : "skip");
 
-  const latestTriage = useQuery(api.triage.getLatest, {
-    userId: user?.id ?? "",
-  });
+  const latestTriage = useQuery(api.triage.getLatest, user?.id ? {
+    userId: user.id,
+  } : "skip");
 
   const createAlert = useMutation(api.alerts.createAlert);
 

@@ -1,14 +1,26 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
+import { checkRateLimit } from "./rateLimiter";
 
 export const create = mutation({
   args: {
-    user_id: v.string(),
+    user_id: v.optional(v.string()),
     thought_original: v.optional(v.string()),
     situation_text: v.optional(v.string()),
     timestamp: v.number(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.insert("counsellorRequests", args);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const userId = identity.subject;
+
+    await checkRateLimit(ctx, userId, "journal_write", 5, 60000);
+
+    return await ctx.db.insert("counsellorRequests", {
+      user_id: userId,
+      thought_original: args.thought_original,
+      situation_text: args.situation_text,
+      timestamp: Date.now(),
+    });
   },
 });

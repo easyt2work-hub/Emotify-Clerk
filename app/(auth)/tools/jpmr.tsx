@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Animated } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Animated, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { useAppAuth } from "@/utils/auth";
 import { useMutation } from "convex/react";
@@ -11,8 +11,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as Speech from "expo-speech";
-import Svg, { Circle } from "react-native-svg";
+import Svg, { Circle, Path, G } from "react-native-svg";
 import * as SecureStore from "expo-secure-store";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useVideoPlayer, VideoView } from "expo-video";
 
 const { width } = Dimensions.get('window');
 
@@ -20,83 +22,99 @@ interface JPMRStep {
   title: string;
   tenseScript: string;
   releaseScript: string;
+  video: { uri: string };
 }
 
 const JPMR_STEPS: JPMRStep[] = [
   {
     title: "Introduction",
     tenseScript: "Welcome to Jacobson Progressive Muscle Relaxation. Let's start by taking a slow, deep breath. Focus your awareness on your body. Press start when you are ready to begin.",
-    releaseScript: "Find a comfortable seat or lie down. Close your eyes and observe your breath."
+    releaseScript: "Find a comfortable seat or lie down. Close your eyes and observe your breath.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-woman-doing-breathing-exercises-42289-large.mp4" }
   },
   {
     title: "Hands & Fists",
     tenseScript: "Squeeze both of your hands into tight fists. Hold the tension. Tense your hands and fists for 5 seconds.",
-    releaseScript: "Now release. Let your fingers open and go completely soft. Notice the difference between tension and relaxation in your hands."
+    releaseScript: "Now release. Let your fingers open and go completely soft. Notice the difference between tension and relaxation in your hands.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-hand-squeezing-anti-stress-ball-close-up-42407-large.mp4" }
   },
   {
     title: "Forearms",
     tenseScript: "Bend your hands upward at the wrists to tighten your forearms. Hold the tension in your forearms for 5 seconds.",
-    releaseScript: "Release. Let your wrists drop. Feel the muscles in your lower arms soften and relax."
+    releaseScript: "Release. Let your wrists drop. Feel the muscles in your lower arms soften and relax.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-upper-body-of-a-man-stretching-his-arms-42456-large.mp4" }
   },
   {
     title: "Upper Arms",
     tenseScript: "Bend your elbows and flex your biceps tightly. Hold the tension in your upper arms for 5 seconds.",
-    releaseScript: "Release. Let your arms go completely limp at your sides. Feel the relaxation flow in."
+    releaseScript: "Release. Let your arms go completely limp at your sides. Feel the relaxation flow in.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-upper-body-of-a-man-stretching-his-arms-42456-large.mp4" }
   },
   {
     title: "Shoulders",
     tenseScript: "Shrug your shoulders upward towards your ears. Hold the tension in your shoulders for 5 seconds.",
-    releaseScript: "Release. Let your shoulders drop down heavy and soft. Notice the relief in your neck and shoulder area."
+    releaseScript: "Release. Let your shoulders drop down heavy and soft. Notice the relief in your neck and shoulder area.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-shoulders-of-a-man-doing-stretches-42525-large.mp4" }
   },
   {
     title: "Face & Jaw",
     tenseScript: "Squeeze your eyes shut, wrinkle your nose, and clench your jaw tightly. Hold the tension in your face for 5 seconds.",
-    releaseScript: "Release. Let your forehead smooth out, and let your jaw hang loose. Feel your face relax completely."
+    releaseScript: "Release. Let your forehead smooth out, and let your jaw hang loose. Feel your face relax completely.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-close-up-of-a-womans-face-expressing-calm-42250-large.mp4" }
   },
   {
     title: "Neck",
     tenseScript: "Gently press your head backwards against your seat or support. Hold the tension in your neck for 5 seconds.",
-    releaseScript: "Release. Let your head rest comfortably. Feel your neck muscles go soft and loose."
+    releaseScript: "Release. Let your head rest comfortably. Feel your neck muscles go soft and loose.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-shoulders-of-a-man-doing-stretches-42525-large.mp4" }
   },
   {
     title: "Chest",
     tenseScript: "Take a deep breath and hold it. Feel the tightness across your chest. Hold it for 5 seconds.",
-    releaseScript: "Release. Exhale completely, and let your breathing return to normal. Notice the chest area relax."
+    releaseScript: "Release. Exhale completely, and let your breathing return to normal. Notice the chest area relax.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-woman-doing-breathing-exercises-42289-large.mp4" }
   },
   {
     title: "Stomach",
     tenseScript: "Tighten your stomach muscles as if preparing for an impact. Hold the tension in your stomach for 5 seconds.",
-    releaseScript: "Release. Let your stomach relax completely. Take a deep, gentle breath into your soft stomach."
+    releaseScript: "Release. Let your stomach relax completely. Take a deep, gentle breath into your soft stomach.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-woman-lying-on-bed-stretching-and-relaxing-42358-large.mp4" }
   },
   {
     title: "Back",
     tenseScript: "Arch your back slightly and pull your shoulder blades together. Hold the tension in your back for 5 seconds.",
-    releaseScript: "Release. Let your back relax and rest flat. Feel the tension flow away."
+    releaseScript: "Release. Let your back relax and rest flat. Feel the tension flow away.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-woman-lying-on-bed-stretching-and-relaxing-42358-large.mp4" }
   },
   {
     title: "Thighs",
     tenseScript: "Squeeze your thigh muscles tightly. Hold the tension in your thighs for 5 seconds.",
-    releaseScript: "Release. Let your thigh muscles go completely loose. Notice the warm, heavy sensation."
+    releaseScript: "Release. Let your thigh muscles go completely loose. Notice the warm, heavy sensation.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-woman-lying-on-bed-stretching-and-relaxing-42358-large.mp4" }
   },
   {
     title: "Calves",
     tenseScript: "Point your toes upward towards your shins to tighten your calf muscles. Hold the tension in your calves for 5 seconds.",
-    releaseScript: "Release. Let your legs rest. Feel the peacefulness in your lower legs."
+    releaseScript: "Release. Let your legs rest. Feel the peacefulness in your lower legs.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-woman-lying-on-bed-stretching-and-relaxing-42358-large.mp4" }
   },
   {
     title: "Feet",
     tenseScript: "Curl your toes downward, tensing your feet. Hold the tension in your feet for 5 seconds.",
-    releaseScript: "Release. Uncurl your toes. Enjoy the feeling of complete relaxation in your feet."
+    releaseScript: "Release. Uncurl your toes. Enjoy the feeling of complete relaxation in your feet.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-woman-lying-on-bed-stretching-and-relaxing-42358-large.mp4" }
   },
   {
     title: "Full Body",
     tenseScript: "Now, tense your entire body from your face to your feet. Squeeze every muscle. Hold the full body tension for 5 seconds.",
-    releaseScript: "Release. Let go of all tension completely. Let your whole body sink deeply. Feel the absolute relaxation."
+    releaseScript: "Release. Let go of all tension completely. Let your whole body sink deeply. Feel the absolute relaxation.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-woman-meditating-under-a-tree-42283-large.mp4" }
   },
   {
     title: "Reflection",
     tenseScript: "Take a few final calm, deep breaths. Appreciate the sense of quiet and relaxation in your body.",
-    releaseScript: "You have completed your progressive muscle relaxation. Open your eyes when you are ready."
+    releaseScript: "You have completed your progressive muscle relaxation. Open your eyes when you are ready.",
+    video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-woman-doing-breathing-exercises-42289-large.mp4" }
   }
 ];
 
@@ -116,23 +134,23 @@ interface IntensitySelectorProps {
 
 function IntensitySelector({ value, onChange, activeColor }: IntensitySelectorProps) {
   const level = getIntensityLabel(value);
-  
+
   const handleDecrement = () => {
     if (value > 0) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
       onChange(value - 1);
     }
   };
 
   const handleIncrement = () => {
     if (value < 10) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
       onChange(value + 1);
     }
   };
 
   const handleSelect = (n: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
     onChange(n);
   };
 
@@ -145,20 +163,20 @@ function IntensitySelector({ value, onChange, activeColor }: IntensitySelectorPr
         onPress={() => handleSelect(n)}
         style={[
           styles.gridCircle,
-          isSelected 
-            ? { 
-                backgroundColor: numLevel.color, 
-                borderColor: numLevel.color,
-                shadowColor: numLevel.color,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 6,
-                elevation: 4
-              }
+          isSelected
+            ? {
+              backgroundColor: numLevel.color,
+              borderColor: numLevel.color,
+              shadowColor: numLevel.color,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 6,
+              elevation: 4
+            }
             : styles.gridCircleUnselected
         ]}
       >
-        <Text 
+        <Text
           style={[
             styles.gridCircleText,
             { color: isSelected ? Colors.white : Colors.textSecondary }
@@ -173,14 +191,14 @@ function IntensitySelector({ value, onChange, activeColor }: IntensitySelectorPr
   return (
     <View style={styles.selectorContainer}>
       <View style={styles.stepperRow}>
-        <TouchableOpacity 
-          onPress={handleDecrement} 
+        <TouchableOpacity
+          onPress={handleDecrement}
           style={[styles.stepperBtn, value === 0 && styles.stepperBtnDisabled]}
           disabled={value === 0}
         >
           <Ionicons name="remove" size={24} color={value === 0 ? Colors.textMuted : (activeColor || Colors.primary)} />
         </TouchableOpacity>
-        
+
         <View style={styles.valueDisplay}>
           <Text style={[styles.intensityNum, { color: level.color }]}>{value}</Text>
           <View style={[styles.badgeContainer, { backgroundColor: level.color }]}>
@@ -188,8 +206,8 @@ function IntensitySelector({ value, onChange, activeColor }: IntensitySelectorPr
           </View>
         </View>
 
-        <TouchableOpacity 
-          onPress={handleIncrement} 
+        <TouchableOpacity
+          onPress={handleIncrement}
           style={[styles.stepperBtn, value === 10 && styles.stepperBtnDisabled]}
           disabled={value === 10}
         >
@@ -213,12 +231,14 @@ function IntensitySelector({ value, onChange, activeColor }: IntensitySelectorPr
   );
 }
 
+
+
 type PlayState = 'SPEAK_TENSE' | 'TENSE_WAITING' | 'TENSE_COUNTDOWN' | 'SPEAK_RELEASE' | 'RELEASE_COUNTDOWN';
 
 export default function JPMRScreen() {
   const router = useRouter();
   const { user } = useAppAuth();
-  
+
   const [step, setStep] = useState(1);
   const [preIntensity, setPreIntensity] = useState(5);
   const [postIntensity, setPostIntensity] = useState(5);
@@ -233,6 +253,29 @@ export default function JPMRScreen() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [startedAt, setStartedAt] = useState(0);
   const [waitingForProceed, setWaitingForProceed] = useState(false);
+
+  const insets = useSafeAreaInsets();
+  const currentStepData = JPMR_STEPS[activeStep];
+
+  const videoPlayer = useVideoPlayer(currentStepData?.video || null, (playerInstance) => {
+    playerInstance.loop = true;
+    playerInstance.muted = true;
+  });
+
+  // Sync video source with active step and play state
+  useEffect(() => {
+    if (currentStepData?.video) {
+      videoPlayer.replaceAsync(currentStepData.video).then(() => {
+        videoPlayer.loop = true;
+        videoPlayer.muted = true;
+        if (isPlaying && step === 2) {
+          videoPlayer.play();
+        }
+      }).catch(err => {
+        console.error("Error setting video source", err);
+      });
+    }
+  }, [activeStep, currentStepData, isPlaying, step]);
 
   // Load saved session if exists
   useEffect(() => {
@@ -250,7 +293,7 @@ export default function JPMRScreen() {
                 text: "Start Fresh",
                 style: "destructive",
                 onPress: async () => {
-                  await SecureStore.deleteItemAsync(`jpmr_in_progress_${user.id}`).catch(() => {});
+                  await SecureStore.deleteItemAsync(`jpmr_in_progress_${user.id}`).catch(() => { });
                 }
               },
               {
@@ -323,7 +366,7 @@ export default function JPMRScreen() {
   // Session state sequencer
   useEffect(() => {
     let timer: any;
-    
+
     if (!isPlaying || step !== 2) {
       Speech.stop();
       return;
@@ -348,7 +391,7 @@ export default function JPMRScreen() {
       if (countdown > 0) {
         timer = setTimeout(() => {
           setCountdown(countdown - 1);
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
         }, 1000);
       } else {
         setPlayState('SPEAK_RELEASE');
@@ -391,7 +434,7 @@ export default function JPMRScreen() {
   }, [isPlaying, playState, activeStep, countdown, step]);
 
   const handleStartSession = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
     setStartedAt(Date.now());
     setStep(2);
     setActiveStep(0);
@@ -415,7 +458,7 @@ export default function JPMRScreen() {
   };
 
   const handleStartTensing = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
     if (activeStep === 0 || activeStep === JPMR_STEPS.length - 1) {
       setPlayState('SPEAK_RELEASE');
     } else {
@@ -439,21 +482,21 @@ export default function JPMRScreen() {
         "Would you like to save your progress so you can resume later, or discard this session?",
         [
           { text: "Cancel", style: "cancel" },
-          { 
-            text: "Discard", 
-            style: "destructive", 
+          {
+            text: "Discard",
+            style: "destructive",
             onPress: async () => {
               setIsPlaying(false);
               Speech.stop();
               if (user) {
-                await SecureStore.deleteItemAsync(`jpmr_in_progress_${user.id}`).catch(() => {});
+                await SecureStore.deleteItemAsync(`jpmr_in_progress_${user.id}`).catch(() => { });
               }
               router.back();
             }
           },
-          { 
-            text: "Save & Exit", 
-            style: "default", 
+          {
+            text: "Save & Exit",
+            style: "default",
             onPress: async () => {
               setIsPlaying(false);
               Speech.stop();
@@ -476,15 +519,15 @@ export default function JPMRScreen() {
       "Are you sure you want to end this relaxation session? Your progress will not be saved.",
       [
         { text: "Cancel", style: "cancel" },
-        { 
-          text: "Stop", 
-          style: "destructive", 
+        {
+          text: "Stop",
+          style: "destructive",
           onPress: () => {
             setIsPlaying(false);
             Speech.stop();
             setWaitingForProceed(false);
             if (user) {
-              SecureStore.deleteItemAsync(`jpmr_in_progress_${user.id}`).catch(() => {});
+              SecureStore.deleteItemAsync(`jpmr_in_progress_${user.id}`).catch(() => { });
             }
             setStep(1);
           }
@@ -494,7 +537,7 @@ export default function JPMRScreen() {
   };
 
   const handleProceedToNextStep = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
     const nextStep = activeStep + 1;
     setActiveStep(nextStep);
     setPlayState('SPEAK_TENSE');
@@ -507,7 +550,7 @@ export default function JPMRScreen() {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      await SecureStore.deleteItemAsync(`jpmr_in_progress_${user.id}`).catch(() => {});
+      await SecureStore.deleteItemAsync(`jpmr_in_progress_${user.id}`).catch(() => { });
       await createLog({
         userId: user.id,
         completed: true,
@@ -517,11 +560,11 @@ export default function JPMRScreen() {
         startedAt,
         completedAt: Date.now(),
       });
-      
+
       const diff = preIntensity - postIntensity;
       const percent = preIntensity > 0 ? Math.round((diff / preIntensity) * 100) : 0;
       setImprovement(percent);
-      
+
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep(4);
     } catch (error) {
@@ -538,7 +581,6 @@ export default function JPMRScreen() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const currentStepData = JPMR_STEPS[activeStep];
   const progress = ((activeStep + 1) / JPMR_STEPS.length) * 100;
   const strokeDashoffset = 440 - (440 * progress) / 100;
 
@@ -579,17 +621,23 @@ export default function JPMRScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <LinearGradient
         colors={['#F4F3FF', '#E0DBFF']}
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={styles.content}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={handleBackPress} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.text} />
         </TouchableOpacity>
+      </View>
 
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* STEP 1: Introduction Screen */}
         {step === 1 && (
           <View style={styles.stepContent}>
@@ -600,16 +648,16 @@ export default function JPMRScreen() {
 
             <View style={styles.ratingCard}>
               <Text style={styles.ratingHeading}>Rate your current body tension</Text>
-              <IntensitySelector 
-                value={preIntensity} 
-                onChange={setPreIntensity} 
-                activeColor={Colors.primary} 
+              <IntensitySelector
+                value={preIntensity}
+                onChange={setPreIntensity}
+                activeColor={Colors.primary}
               />
             </View>
 
-            <Button 
-              title="Start Session" 
-              onPress={handleStartSession} 
+            <Button
+              title="Start Session"
+              onPress={handleStartSession}
               style={styles.actionBtn}
             />
           </View>
@@ -620,29 +668,41 @@ export default function JPMRScreen() {
           <View style={styles.stepContent}>
             <Text style={styles.title}>{currentStepData.title}</Text>
             <Text style={styles.subtitle}>Step {activeStep + 1} of {JPMR_STEPS.length}</Text>
-            
-            <TouchableOpacity 
+
+            <View style={styles.videoContainer}>
+              <VideoView
+                player={videoPlayer}
+                style={StyleSheet.absoluteFill}
+                allowsFullscreen={false}
+                nativeControls={false}
+              />
+              <View style={styles.videoBadge}>
+                <Text style={styles.videoBadgeText}>Demonstration</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
               activeOpacity={playState === 'TENSE_WAITING' || waitingForProceed ? 0.7 : 1}
               onPress={handleCirclePress}
               disabled={!(playState === 'TENSE_WAITING' || waitingForProceed)}
               style={styles.playerWrapper}
             >
               <Svg width={180} height={180} viewBox="0 0 180 180">
-                <Circle 
-                  cx={90} 
-                  cy={90} 
-                  r={70} 
-                  stroke="#EBE9FE" 
-                  strokeWidth={8} 
-                  fill="transparent" 
+                <Circle
+                  cx={90}
+                  cy={90}
+                  r={70}
+                  stroke="#EBE9FE"
+                  strokeWidth={8}
+                  fill="transparent"
                 />
-                <Circle 
-                  cx={90} 
-                  cy={90} 
-                  r={70} 
-                  stroke={Colors.primary} 
-                  strokeWidth={8} 
-                  fill="transparent" 
+                <Circle
+                  cx={90}
+                  cy={90}
+                  r={70}
+                  stroke={Colors.primary}
+                  strokeWidth={8}
+                  fill="transparent"
                   strokeDasharray={440}
                   strokeDashoffset={strokeDashoffset}
                   strokeLinecap="round"
@@ -657,30 +717,30 @@ export default function JPMRScreen() {
             <View style={styles.subtitleCard}>
               <Ionicons name="chatbubble-ellipses" size={20} color={Colors.primary} style={{ marginBottom: 6 }} />
               <Text style={styles.subtitleText}>
-                {playState === 'SPEAK_TENSE' || playState === 'TENSE_WAITING' || playState === 'TENSE_COUNTDOWN' 
-                  ? currentStepData.tenseScript 
+                {playState === 'SPEAK_TENSE' || playState === 'TENSE_WAITING' || playState === 'TENSE_COUNTDOWN'
+                  ? currentStepData.tenseScript
                   : currentStepData.releaseScript}
               </Text>
             </View>
 
             <Text style={styles.timerText}>{formatTime(elapsedTime)} elapsed</Text>
-            
+
             {playState === 'TENSE_WAITING' ? (
-              <Button 
+              <Button
                 title={
-                  activeStep === 0 
-                    ? "Start Breathing" 
-                    : activeStep === JPMR_STEPS.length - 1 
-                      ? "Start Reflection" 
+                  activeStep === 0
+                    ? "Start Breathing"
+                    : activeStep === JPMR_STEPS.length - 1
+                      ? "Start Reflection"
                       : "Start Tensing"
-                } 
-                onPress={handleStartTensing} 
+                }
+                onPress={handleStartTensing}
                 style={styles.actionBtn}
               />
             ) : waitingForProceed ? (
-              <Button 
-                title={`Start ${JPMR_STEPS[activeStep + 1]?.title || 'Next'}`} 
-                onPress={handleProceedToNextStep} 
+              <Button
+                title={`Start ${JPMR_STEPS[activeStep + 1]?.title || 'Next'}`}
+                onPress={handleProceedToNextStep}
                 style={styles.actionBtn}
               />
             ) : (
@@ -706,19 +766,19 @@ export default function JPMRScreen() {
           <View style={styles.stepContent}>
             <Text style={styles.title}>Great — you've finished JPMR.</Text>
             <Text style={styles.subtitle}>How do you feel now?</Text>
-            
+
             <View style={styles.ratingCard}>
-              <IntensitySelector 
-                value={postIntensity} 
-                onChange={setPostIntensity} 
-                activeColor={Colors.primary} 
+              <IntensitySelector
+                value={postIntensity}
+                onChange={setPostIntensity}
+                activeColor={Colors.primary}
               />
             </View>
 
-            <Button 
-              title="Save & Continue" 
-              onPress={handleSavePostIntensity} 
-              loading={isSubmitting} 
+            <Button
+              title="Save & Continue"
+              onPress={handleSavePostIntensity}
+              loading={isSubmitting}
               style={styles.actionBtn}
             />
           </View>
@@ -729,11 +789,11 @@ export default function JPMRScreen() {
           <View style={styles.stepContent}>
             <Text style={styles.title}>Session Summary</Text>
             <Text style={styles.subtitle}>Every moment of relaxation strengthens your mind.</Text>
-            
+
             <View style={styles.summaryResultCard}>
               <Text style={styles.resultPercentage}>{improvement > 0 ? `${improvement}%` : '0%'}</Text>
               <Text style={styles.resultLabel}>Tension Reduction</Text>
-              
+
               <View style={styles.resultDetailRow}>
                 <Text style={styles.resultVal}>{preIntensity} initial</Text>
                 <Ionicons name="arrow-forward" size={16} color={Colors.textSecondary} />
@@ -744,14 +804,14 @@ export default function JPMRScreen() {
             <Text style={styles.compareHeading}>Would you like to compare how your body feels now?</Text>
 
             <View style={styles.compareBtnContainer}>
-              <Button 
-                title="Compare Body Map" 
-                onPress={() => router.replace({ pathname: "/(auth)/tools/emotion-map" }) as any} 
+              <Button
+                title="Compare Body Map"
+                onPress={() => router.replace({ pathname: "/(auth)/tools/emotion-map" }) as any}
                 style={styles.actionBtn}
               />
-              <Button 
-                title="Back to Dashboard" 
-                onPress={() => router.replace("/(auth)/(tabs)") as any} 
+              <Button
+                title="Back to Dashboard"
+                onPress={() => router.replace("/(auth)/(tabs)") as any}
                 variant="outline"
                 style={styles.actionBtnOutline}
                 textStyle={{ color: Colors.primary }}
@@ -759,15 +819,76 @@ export default function JPMRScreen() {
             </View>
           </View>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { flex: 1, padding: Theme.spacing.lg, paddingTop: 60, alignItems: 'center' },
-  backBtn: { alignSelf: 'flex-start', marginBottom: Theme.spacing.md },
+  header: {
+    paddingHorizontal: Theme.spacing.lg,
+    paddingTop: Theme.spacing.sm,
+    paddingBottom: Theme.spacing.xs,
+    width: '100%',
+    zIndex: 10,
+  },
+  backBtn: {
+    alignSelf: 'flex-start',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  scrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollContent: {
+    paddingHorizontal: Theme.spacing.lg,
+    paddingBottom: Theme.spacing.xl + 40,
+    alignItems: 'center',
+  },
+  videoContainer: {
+    width: width - Theme.spacing.lg * 2,
+    height: 200,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: Theme.spacing.lg,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 3,
+    position: 'relative',
+  },
+  videoPlayer: {
+    width: '100%',
+    height: '100%',
+  },
+  videoBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  videoBadgeText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 10,
+    color: '#FFF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   title: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: Theme.fontSize.xl,

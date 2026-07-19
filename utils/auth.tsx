@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from "r
 import * as SecureStore from "expo-secure-store";
 import * as LocalAuthentication from "expo-local-authentication";
 import { ConvexReactClient } from "convex/react";
+import { AppState, AppStateStatus } from "react-native";
 import { api } from "../convex/_generated/api";
 
 interface User {
@@ -206,6 +207,33 @@ export function AuthProvider({ children, convex }: { children: React.ReactNode; 
       setIsLoggingOut(false);
     }
   };
+
+  const lastBackgroundTimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === "background") {
+        lastBackgroundTimeRef.current = Date.now();
+      } else if (nextAppState === "active") {
+        if (lastBackgroundTimeRef.current !== null) {
+          const elapsed = Date.now() - lastBackgroundTimeRef.current;
+          const fifteenMinutes = 15 * 60 * 1000;
+          if (elapsed > fifteenMinutes) {
+            if (tokenRef.current) {
+              console.log("Inactivity limit exceeded. Logging out user automatically.");
+              await logout();
+            }
+          }
+        }
+        lastBackgroundTimeRef.current = null;
+      }
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   const updateUser = async (updatedUser: User) => {
     setUser(updatedUser);

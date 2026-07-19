@@ -1,10 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { checkRateLimit } from "./rateLimiter";
 
 /** Run triage logic and save result, checking for escalation/improvement */
 export const processTriage = mutation({
   args: {
-    userId: v.string(),
+    userId: v.optional(v.string()),
     phq9_total: v.number(),
     gad7_total: v.number(),
     pq16_total: v.number(),
@@ -13,7 +14,17 @@ export const processTriage = mutation({
     phq9_item9_score: v.number(),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const userId = identity.subject;
+
+    await checkRateLimit(ctx, userId, "journal_write", 5, 60000);
+
+    // Validation
     const { phq9_total, gad7_total, pq16_total, wsas_total, reqol10_total, phq9_item9_score } = args;
+    if (phq9_total < 0 || gad7_total < 0 || pq16_total < 0 || wsas_total < 0 || reqol10_total < 0 || phq9_item9_score < 0) {
+      throw new Error("Scores cannot be negative.");
+    }
 
     let level: string = "mild";
     let suicideFlag = false;
@@ -50,7 +61,7 @@ export const processTriage = mutation({
     // Monitoring: check for escalation or improvement relative to previous WSAS
     const previousScreening = await ctx.db
       .query("screenings")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
       .take(2); // Take 2 because the current one is already inserted or about to be
 
@@ -64,7 +75,7 @@ export const processTriage = mutation({
     }
 
     const triageId = await ctx.db.insert("triages", {
-      userId: args.userId,
+      userId,
       level,
       suicideFlag,
       psychosisFlag,
@@ -73,7 +84,7 @@ export const processTriage = mutation({
 
     if (requiresAlert) {
       await ctx.db.insert("alerts", {
-        userId: args.userId,
+        userId,
         type: alertType || "general",
         status: "pending",
         createdAt: Date.now(),
@@ -85,14 +96,16 @@ export const processTriage = mutation({
 });
 
 /** Get latest triage for a user */
-
-/** Get latest triage for a user */
 export const getLatest = query({
-  args: { userId: v.string() },
+  args: { userId: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const userId = identity.subject;
+
     const triages = await ctx.db
       .query("triages")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .order("desc")
       .take(1);
     return triages[0] ?? null;

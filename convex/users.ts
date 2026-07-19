@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { signJwt, verifyPassword, hashPassword } from "./authHelpers";
+import { logAuditEvent } from "./audit";
 
 /** Get user by ID (for compatibility with getByClerkId) */
 export const getByClerkId = query({
@@ -349,17 +350,47 @@ export const login = mutation({
       .first();
 
     if (!user) {
+      await logAuditEvent(ctx, undefined, "failed_login", "Login attempt with non-existent mobile number");
       return { error: "Invalid mobile number or password" };
     }
 
     if (user.status === "inactive") {
+      await logAuditEvent(ctx, user._id, "failed_login", "Login attempt for inactive user");
       return { error: "Account is inactive. Please contact administrator." };
+    }
+
+    const now = Date.now();
+    if (user.lockoutUntil && user.lockoutUntil > now) {
+      const minutesLeft = Math.ceil((user.lockoutUntil - now) / 60000);
+      await logAuditEvent(ctx, user._id, "login_blocked", `Blocked login attempt. Account locked for ${minutesLeft} more minutes.`);
+      return { error: `Account is locked due to multiple failed login attempts. Try again in ${minutesLeft} minute(s).` };
     }
 
     const isValid = await verifyPassword(args.password, user.password_hash || "");
     if (!isValid) {
-      return { error: "Invalid mobile number or password" };
+      const currentAttempts = (user.failedLoginAttempts || 0) + 1;
+      const updates: any = { failedLoginAttempts: currentAttempts };
+      
+      let errorMsg = "Invalid mobile number or password";
+      if (currentAttempts >= 5) {
+        updates.lockoutUntil = now + 15 * 60000; // 15 minutes lockout
+        errorMsg = "Account has been locked for 15 minutes due to 5 consecutive failed login attempts.";
+        await logAuditEvent(ctx, user._id, "account_locked", "Account locked due to 5 consecutive failed logins");
+      } else {
+        await logAuditEvent(ctx, user._id, "failed_login", `Incorrect password. Attempt ${currentAttempts}/5.`);
+      }
+      
+      await ctx.db.patch(user._id, updates);
+      return { error: errorMsg };
     }
+
+    // Reset attempts and lockout on success
+    await ctx.db.patch(user._id, {
+      failedLoginAttempts: 0,
+      lockoutUntil: undefined,
+    });
+
+    await logAuditEvent(ctx, user._id, "login", "Successful user login");
 
     // Generate JWT
     const token = await signJwt({
@@ -420,6 +451,7 @@ export const logout = mutation({
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .first();
     if (session) {
+      await logAuditEvent(ctx, session.userId, "logout", "User logged out");
       await ctx.db.delete(session._id);
     }
     return { success: true };
@@ -571,7 +603,7 @@ export const clearExpiredSessions = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
     const expired = await ctx.db.query("sessions").collect();
-    
+
     let count = 0;
     for (const session of expired) {
       if (session.expiresAt < now) {
