@@ -3,7 +3,7 @@ import { View, Text, TextInput, StyleSheet, ScrollView, KeyboardAvoidingView, Pl
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAppAuth } from "@/utils/auth";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors } from "@/constants/Colors";
 import { Theme } from "@/constants/Theme";
@@ -17,16 +17,21 @@ export default function DemographicsScreen() {
     emergencyPhone: string;
   }>();
 
+  const appUser = useQuery(api.users.getByClerkId, user?.id ? {
+    clerkId: user.id,
+  } : "skip");
+
   const completeOnboarding = useMutation(api.users.completeOnboarding);
 
-  const [alias, setAlias] = useState("");
+  const assignedName = appUser?.full_name || user?.full_name || "Assigned Student";
+
   const [age, setAge] = useState("");
   const [campus, setCampus] = useState("");
   const [department, setDepartment] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const isValid = alias.trim() && age.trim() && campus.trim() && department.trim();
+  const isValid = age.trim() && campus.trim() && department.trim();
 
   async function handleSubmit() {
     if (!user || !isValid) return;
@@ -35,7 +40,7 @@ export default function DemographicsScreen() {
 
     try {
       await completeOnboarding({
-        alias: alias.trim(),
+        alias: assignedName,
         age: parseInt(age, 10) || 0,
         campus: campus.trim(),
         department: department.trim(),
@@ -82,19 +87,14 @@ export default function DemographicsScreen() {
       <Text style={styles.step}>Step 3 of 3</Text>
       <Text style={styles.title}>Tell us about you</Text>
       <Text style={styles.subtitle}>
-        This helps us personalize your experience. You can use a nickname if
-        you prefer.
+        Your profile details assigned by your counselor/institution.
       </Text>
 
       <View style={styles.form}>
-        <Text style={styles.label}>What should we call you?</Text>
-        <TextInput
-          style={styles.input}
-          value={alias}
-          onChangeText={setAlias}
-          placeholder="Your name or nickname"
-          placeholderTextColor={Colors.textMuted}
-        />
+        <Text style={styles.label}>Name (Assigned by Admin)</Text>
+        <View style={styles.readOnlyContainer}>
+          <Text style={styles.readOnlyText}>{assignedName}</Text>
+        </View>
 
         <Text style={styles.label}>Age</Text>
         <TextInput
@@ -181,6 +181,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Theme.spacing.md,
     paddingVertical: 14,
     fontFamily: Theme.fontFamily.regular,
+    fontSize: Theme.fontSize.md,
+    color: Colors.text,
+  },
+  readOnlyContainer: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: Theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: Theme.spacing.md,
+    paddingVertical: 14,
+  },
+  readOnlyText: {
+    fontFamily: Theme.fontFamily.bold,
     fontSize: Theme.fontSize.md,
     color: Colors.text,
   },

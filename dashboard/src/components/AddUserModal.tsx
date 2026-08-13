@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, User, Phone, Lock, Eye, EyeOff, RefreshCw, CheckCircle } from "lucide-react";
 import { useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { api } from "../../convex/_generated/api";
 
 export default function AddUserModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
   const createUser = useMutation(api.users.createUser);
@@ -75,7 +75,7 @@ export default function AddUserModal({ onClose, onSuccess }: { onClose: () => vo
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(3, 8, 18, 0.75)",
+      background: "rgba(15, 23, 42, 0.45)",
       backdropFilter: "blur(12px)",
       zIndex: 99999,
       display: "flex",
@@ -88,9 +88,9 @@ export default function AddUserModal({ onClose, onSuccess }: { onClose: () => vo
         maxWidth: "500px",
         padding: "36px",
         borderRadius: "20px",
-        border: "1px solid rgba(59, 130, 246, 0.2)",
-        boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
-        background: "rgba(8, 18, 38, 0.98)",
+        border: "1px solid var(--border-color)",
+        boxShadow: "0 24px 60px rgba(0,0,0,0.15)",
+        background: "#ffffff",
         display: "flex",
         flexDirection: "column",
         gap: "24px"
@@ -106,7 +106,7 @@ export default function AddUserModal({ onClose, onSuccess }: { onClose: () => vo
               <CheckCircle size={48} color="#10B981" />
             </div>
             <div>
-              <h2 style={{ color: "white", margin: "0 0 8px 0" }}>User Created Successfully</h2>
+              <h2 style={{ color: "var(--text-primary)", margin: "0 0 8px 0" }}>User Created Successfully</h2>
               <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
                 Please share the login credentials below with the user.
               </p>
@@ -114,8 +114,8 @@ export default function AddUserModal({ onClose, onSuccess }: { onClose: () => vo
 
             <div style={{
               width: "100%",
-              background: "rgba(255, 255, 255, 0.03)",
-              border: "1px solid rgba(255, 255, 255, 0.06)",
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
               borderRadius: "12px",
               padding: "20px",
               display: "flex",
@@ -126,21 +126,21 @@ export default function AddUserModal({ onClose, onSuccess }: { onClose: () => vo
             }}>
               <div>
                 <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block" }}>Full Name</span>
-                <span style={{ color: "white", fontWeight: 600, fontSize: "1rem" }}>{createdUserInfo.fullName}</span>
+                <span style={{ color: "var(--text-primary)", fontWeight: 600, fontSize: "1rem" }}>{createdUserInfo.fullName}</span>
               </div>
-              <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "8px" }}>
+              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "8px" }}>
                 <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block" }}>Mobile Number</span>
-                <span style={{ color: "white", fontWeight: 600, fontSize: "1rem" }}>{createdUserInfo.mobile}</span>
+                <span style={{ color: "var(--text-primary)", fontWeight: 600, fontSize: "1rem" }}>{createdUserInfo.mobile}</span>
               </div>
               {createdUserInfo.email && (
-                <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "8px" }}>
+                <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "8px" }}>
                   <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block" }}>Email Address</span>
-                  <span style={{ color: "white", fontWeight: 600, fontSize: "1rem" }}>{createdUserInfo.email}</span>
+                  <span style={{ color: "var(--text-primary)", fontWeight: 600, fontSize: "1rem" }}>{createdUserInfo.email}</span>
                 </div>
               )}
-              <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "8px" }}>
+              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "8px" }}>
                 <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block" }}>Temporary Password</span>
-                <span style={{ color: "#E0E7FF", fontWeight: 600, fontSize: "1.1rem", fontFamily: "monospace", background: "rgba(99, 102, 241, 0.15)", padding: "4px 8px", borderRadius: "6px", display: "inline-block" }}>
+                <span style={{ color: "#3730a3", fontWeight: 600, fontSize: "1.1rem", fontFamily: "monospace", background: "rgba(99, 102, 241, 0.1)", padding: "4px 8px", borderRadius: "6px", display: "inline-block" }}>
                   {createdUserInfo.pass}
                 </span>
               </div>
@@ -158,7 +158,7 @@ export default function AddUserModal({ onClose, onSuccess }: { onClose: () => vo
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
-                <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "white", margin: "0 0 4px 0" }}>Add New User</h2>
+                <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "var(--text-primary)", margin: "0 0 4px 0" }}>Add New User</h2>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", margin: 0 }}>
                   Initialize a new user profile with secure temporary access.
                 </p>
@@ -166,8 +166,8 @@ export default function AddUserModal({ onClose, onSuccess }: { onClose: () => vo
               <button
                 onClick={onClose}
                 style={{
-                  background: "rgba(255, 255, 255, 0.05)",
-                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  background: "#f1f5f9",
+                  border: "1px solid #cbd5e1",
                   color: "var(--text-secondary)",
                   cursor: "pointer",
                   padding: "6px",
@@ -190,11 +190,11 @@ export default function AddUserModal({ onClose, onSuccess }: { onClose: () => vo
                     onChange={(e) => setFullName(e.target.value)}
                     style={{
                       width: "100%",
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "#ffffff",
+                      border: "1px solid var(--input-border)",
                       padding: "12px 12px 12px 38px",
                       borderRadius: "10px",
-                      color: "white",
+                      color: "var(--text-primary)",
                       fontSize: "0.95rem",
                       outline: "none",
                       boxSizing: "border-box"
@@ -213,11 +213,11 @@ export default function AddUserModal({ onClose, onSuccess }: { onClose: () => vo
                     onChange={(e) => setEmail(e.target.value)}
                     style={{
                       width: "100%",
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "#ffffff",
+                      border: "1px solid var(--input-border)",
                       padding: "12px 12px 12px 16px",
                       borderRadius: "10px",
-                      color: "white",
+                      color: "var(--text-primary)",
                       fontSize: "0.95rem",
                       outline: "none",
                       boxSizing: "border-box"
@@ -238,11 +238,11 @@ export default function AddUserModal({ onClose, onSuccess }: { onClose: () => vo
                     onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, ""))}
                     style={{
                       width: "100%",
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "#ffffff",
+                      border: "1px solid var(--input-border)",
                       padding: "12px 12px 12px 38px",
                       borderRadius: "10px",
-                      color: "white",
+                      color: "var(--text-primary)",
                       fontSize: "0.95rem",
                       outline: "none",
                       boxSizing: "border-box"
@@ -252,102 +252,129 @@ export default function AddUserModal({ onClose, onSuccess }: { onClose: () => vo
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>Temporary Password</label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>Temporary Password</label>
+                  <button
+                    type="button"
+                    onClick={generatePassword}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--accent-primary)",
+                      fontSize: "0.78rem",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      fontWeight: 600
+                    }}
+                  >
+                    <RefreshCw size={12} /> Auto-generate
+                  </button>
+                </div>
                 <div style={{ position: "relative" }}>
                   <Lock size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--text-secondary)" }} />
                   <input
                     type={showPassword ? "text" : "password"}
-                    readOnly
                     value={tempPassword}
+                    onChange={(e) => setTempPassword(e.target.value)}
                     style={{
                       width: "100%",
-                      background: "rgba(255,255,255,0.02)",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                      padding: "12px 76px 12px 38px",
+                      background: "#ffffff",
+                      border: "1px solid var(--input-border)",
+                      padding: "12px 38px 12px 38px",
                       borderRadius: "10px",
-                      color: "#A5B4FC",
+                      color: "var(--text-primary)",
                       fontSize: "0.95rem",
-                      fontFamily: "monospace",
-                      fontWeight: 600,
                       outline: "none",
                       boxSizing: "border-box"
                     }}
                   />
-                  <div style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", display: "flex", gap: "6px" }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", padding: "4px" }}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={generatePassword}
-                      style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", padding: "4px" }}
-                    >
-                      <RefreshCw size={16} />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: "absolute",
+                      right: "12px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      color: "var(--text-secondary)",
+                      cursor: "pointer",
+                      padding: 0
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>Status</label>
-                <div style={{ display: "flex", gap: "12px" }}>
-                  {["active", "inactive"].map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setStatus(s)}
-                      style={{
-                        flex: 1,
-                        padding: "10px",
-                        borderRadius: "8px",
-                        border: `1px solid ${status === s ? "var(--accent-primary)" : "rgba(255,255,255,0.05)"}`,
-                        background: status === s ? "rgba(59, 130, 246, 0.15)" : "rgba(255,255,255,0.02)",
-                        color: status === s ? "white" : "var(--text-secondary)",
-                        cursor: "pointer",
-                        fontWeight: 600,
-                        textTransform: "capitalize"
-                      }}
-                    >
-                      {s}
-                    </button>
-                  ))}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setStatus("active")}
+                    style={{
+                      padding: "10px",
+                      borderRadius: "8px",
+                      border: status === "active" ? "1px solid var(--accent-primary)" : "1px solid var(--border-color)",
+                      background: status === "active" ? "rgba(37, 99, 235, 0.08)" : "#f8fafc",
+                      color: status === "active" ? "var(--accent-primary)" : "var(--text-secondary)",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    Active
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatus("inactive")}
+                    style={{
+                      padding: "10px",
+                      borderRadius: "8px",
+                      border: status === "inactive" ? "1px solid var(--danger)" : "1px solid var(--border-color)",
+                      background: status === "inactive" ? "rgba(239, 68, 68, 0.08)" : "#f8fafc",
+                      color: status === "inactive" ? "var(--danger)" : "var(--text-secondary)",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    Inactive
+                  </button>
                 </div>
               </div>
 
               {error && (
                 <div style={{
-                  padding: "10px",
-                  background: "rgba(239, 68, 68, 0.1)",
-                  border: "1px solid rgba(239, 68, 68, 0.2)",
+                  padding: "10px 14px",
                   borderRadius: "8px",
-                  color: "#FCA5A5",
-                  fontSize: "0.85rem",
-                  textAlign: "center"
+                  background: "rgba(239, 68, 68, 0.08)",
+                  border: "1px solid rgba(239, 68, 68, 0.2)",
+                  color: "var(--danger)",
+                  fontSize: "0.85rem"
                 }}>
                   {error}
                 </div>
               )}
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "10px" }}>
+              <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
                 <button
                   type="button"
                   onClick={onClose}
                   className="btn btn-secondary"
-                  style={{ padding: "10px 20px" }}
+                  style={{ flex: 1, padding: "12px" }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary"
                   disabled={loading}
-                  style={{ padding: "10px 24px" }}
+                  className="btn btn-primary"
+                  style={{ flex: 1, padding: "12px" }}
                 >
-                  {loading ? "Creating..." : "Save User"}
+                  {loading ? "Saving..." : "Save User"}
                 </button>
               </div>
             </form>

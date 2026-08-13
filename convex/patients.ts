@@ -38,6 +38,7 @@ export const createPatient = mutation({
       email: args.email,
       mobile_number: args.phone,
       password_hash,
+      temp_password: tempPassword,
       role: "patient",
       status: "active",
       is_first_login: true,

@@ -102,15 +102,15 @@ function AppointmentCountdown({
   );
 }
 
-function ToolCard({ 
-  tool, 
-  colors, 
+function ToolCard({
+  tool,
+  colors,
   styles,
   onPress,
   isFullWidth
-}: { 
-  tool: any; 
-  colors: any; 
+}: {
+  tool: any;
+  colors: any;
   styles: any;
   onPress: () => void;
   isFullWidth: boolean;
@@ -137,7 +137,7 @@ function ToolCard({
   };
 
   const getToolColors = (id: string) => {
-    switch(id) {
+    switch (id) {
       case 'emotion-map':
         return { bg: '#F0FDF4', border: '#DCFCE7', accent: '#22C55E' };
       case 'jpmr':
@@ -170,7 +170,7 @@ function ToolCard({
         <View style={[{ alignItems: 'center', width: '100%' }, isFullWidth && { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 }]}>
           <View style={[isFullWidth ? { flexDirection: 'row', alignItems: 'center', gap: 16 } : { alignItems: 'center' }]}>
             <View style={[
-              styles.toolIconContainer, 
+              styles.toolIconContainer,
               { backgroundColor: '#FFFFFF' },
               isFullWidth && { marginBottom: 0, width: 52, height: 52 }
             ]}>
@@ -283,7 +283,7 @@ export default function DashboardScreen() {
     }
   }, [user?.id]);
 
-  const isScreeningComplete = appUser ? !!appUser.screeningComplete : false;
+  const isScreeningComplete = (appUser ? !!appUser.screeningComplete : false) && latestTriage?.level !== "force_retest";
 
   // Mount detection for daily check-in
   React.useEffect(() => {
@@ -377,14 +377,12 @@ export default function DashboardScreen() {
     ? (latestTriage ? getDisplayLevel(latestTriage.level as any) : "Assessment Pending")
     : "Initial Screening Required";
 
-  const wsasScore = latestScreening?.wsas_total ?? 0;
-  const reqolScore = latestScreening?.reqol10_total ?? 0;
+  const phq9Score = latestScreening?.phq9_total ?? 0;
+  const gad7Score = latestScreening?.gad7_total ?? 0;
 
   const { recommendation } = isScreeningComplete
     ? generateInsightMessage({
       triage_level: latestTriage?.level as any || 'mild',
-      wsas_total: wsasScore,
-      reqol10_total: reqolScore,
       alias,
       recentEmotions: recentEmotions ?? [],
       recentTools: recentJpmr ?? [],
@@ -399,23 +397,12 @@ export default function DashboardScreen() {
   const activeEmotion = recentEmotions && recentEmotions.length > 0 ? recentEmotions[0].emotion : null;
   const activeEmotionObj = EMOTIONS.find(e => e.id === activeEmotion);
 
-  const tools = [];
-  if (!isScreeningComplete) {
-    tools.push({
-      id: 'screening',
-      title: 'Take Screening Test',
-      sub: 'Required Initial Assessment',
-      icon: '📋',
-      route: '/(auth)/screening',
-      highlighted: true
-    });
-  }
-  tools.push(
+  const tools = [
     { id: 'emotion-map', title: 'Quick Check', sub: 'Body Scan', icon: '🗺️', route: '/(auth)/tools/emotion-map', locked: !isScreeningComplete },
     { id: 'jpmr', title: 'Relax Now', sub: 'Relaxation', icon: '🧘', route: '/(auth)/tools/jpmr', locked: !isScreeningComplete },
     { id: 'reframe', title: 'Reframe Now', sub: 'Thoughts', icon: '🧠', route: '/(auth)/tools/reframe', restricted: isSevere, locked: !isScreeningComplete },
     { id: 'microgoals', title: 'MicroGoals', sub: 'Habits', icon: '🎯', route: '/(auth)/tools/microgoals', locked: !isScreeningComplete }
-  );
+  ];
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -525,33 +512,38 @@ export default function DashboardScreen() {
         {isScreeningComplete && !hasCheckedInToday && (
           <View style={styles.inlineCheckInContainer}>
             <LinearGradient
-              colors={['rgba(255, 255, 255, 0.95)', 'rgba(244, 246, 255, 0.95)'] as any}
+              colors={['#FFFFFF', '#F8FAFC'] as any}
               style={StyleSheet.absoluteFill}
             />
-            <Text style={styles.inlineCheckInTitle}>How are you feeling today? 🌟</Text>
-            <Text style={styles.inlineCheckInSubtitle}>Log your mood to personalize your therapeutic tools.</Text>
-            
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
+            <View style={styles.inlineCheckInHeaderRow}>
+              <View style={styles.sparkleBadge}>
+                <Ionicons name="sparkles" size={12} color={colors.primary} />
+                <Text style={styles.sparkleBadgeText}>DAILY MOOD CHECK-IN</Text>
+              </View>
+            </View>
+            <Text style={styles.inlineCheckInTitle}>How was your day, {alias}? 🌟</Text>
+            <Text style={styles.inlineCheckInSubtitle}>Tap your current mood to personalize your therapeutic tools.</Text>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.inlineMoodScroll}
             >
               {EMOTIONS.map((emotion) => {
-                const parts = emotion.label.split(' ');
-                const emoji = parts[0];
-                const text = parts.slice(1).join(' ');
                 return (
                   <TouchableOpacity
                     key={emotion.id}
                     onPress={() => handleInlineCheckIn(emotion.id)}
                     style={[
                       styles.inlineMoodCard,
-                      { borderColor: emotion.color + '40' }
+                      { backgroundColor: emotion.color + '12', borderColor: emotion.color + '35' }
                     ]}
-                    activeOpacity={0.85}
+                    activeOpacity={0.8}
                   >
-                    <Text style={styles.inlineMoodEmoji}>{emoji}</Text>
-                    <Text style={styles.inlineMoodText}>{text}</Text>
+                    <View style={[styles.inlineEmojiBubble, { backgroundColor: emotion.color + '22' }]}>
+                      <Text style={styles.inlineMoodEmoji}>{emotion.emoji}</Text>
+                    </View>
+                    <Text style={[styles.inlineMoodText, { color: '#0F172A' }]}>{emotion.label}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -581,15 +573,15 @@ export default function DashboardScreen() {
                   <Text style={styles.onboardingProgressText}>Screening {overallProgress}% Complete</Text>
                 </View>
               </View>
-              
+
               <Text style={styles.onboardingDesc}>
                 {recommendation}
               </Text>
-              
+
               <View style={styles.onboardingProgressBg}>
                 <View style={[styles.onboardingProgressBar, { width: `${overallProgress}%` }]} />
               </View>
-              
+
               <View style={styles.onboardingBtn}>
                 <Text style={styles.onboardingBtnText}>
                   {overallProgress > 0 ? "Resume Assessment" : "Start Assessment"}
@@ -642,65 +634,65 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* Visual Clinical Metrics (If screening complete) */}
+        {/* Visual Clinical Metrics (PHQ-9 & GAD-7) */}
         {isScreeningComplete && (
           <View style={styles.scoreRow}>
-            {/* WSAS functioning card */}
+            {/* PHQ-9 Depression card */}
             <View style={styles.scoreCard}>
               <View style={styles.scoreHeaderRow}>
                 <View style={[styles.iconCircle, { backgroundColor: colors.primary + '15' }]}>
-                  <Ionicons name="fitness-outline" size={18} color={colors.primary} />
+                  <Ionicons name="pulse-outline" size={18} color={colors.primary} />
                 </View>
                 <View style={styles.scoreBadgeMini}>
-                  <Text style={[styles.scoreBadgeMiniText, { color: colors.primary }]}>
-                    {wsasScore <= 9 ? "Normal" : wsasScore <= 20 ? "Mild" : wsasScore <= 30 ? "Moderate" : "Severe"}
+                  <Text style={[styles.scoreBadgeMiniText, { color: phq9Score >= 10 ? colors.error : colors.success }]}>
+                    {phq9Score <= 4 ? "Minimal" : phq9Score <= 9 ? "Mild" : phq9Score <= 14 ? "Moderate" : "Severe"}
                   </Text>
                 </View>
               </View>
-              <Text style={styles.scoreValue}>{wsasScore}<Text style={styles.scoreMax}>/40</Text></Text>
-              <Text style={styles.scoreLabel}>FUNCTIONING</Text>
-              
+              <Text style={styles.scoreValue}>{phq9Score}<Text style={styles.scoreMax}>/27</Text></Text>
+              <Text style={styles.scoreLabel}>PHQ-9 DEPRESSION</Text>
+
               <View style={styles.metricTrack}>
-                <View 
+                <View
                   style={[
-                    styles.metricFill, 
-                    { 
-                      width: `${(wsasScore / 40) * 100}%`, 
-                      backgroundColor: wsasScore <= 20 ? colors.success : wsasScore <= 30 ? colors.warning : colors.error 
+                    styles.metricFill,
+                    {
+                      width: `${Math.min((phq9Score / 27) * 100, 100)}%`,
+                      backgroundColor: phq9Score <= 9 ? colors.success : phq9Score <= 14 ? colors.warning : colors.error
                     }
-                  ]} 
+                  ]}
                 />
               </View>
-              <Text style={styles.metricDesc}>Lower score = better functioning</Text>
+              <Text style={styles.metricDesc}>Lower score = better mood</Text>
             </View>
 
-            {/* ReQoL wellbeing card */}
+            {/* GAD-7 Anxiety card */}
             <View style={styles.scoreCard}>
               <View style={styles.scoreHeaderRow}>
                 <View style={[styles.iconCircle, { backgroundColor: colors.secondary + '15' }]}>
                   <Ionicons name="heart-outline" size={18} color={colors.secondary} />
                 </View>
                 <View style={styles.scoreBadgeMini}>
-                  <Text style={[styles.scoreBadgeMiniText, { color: colors.secondary }]}>
-                    {reqolScore >= 25 ? "Good" : "Needs Care"}
+                  <Text style={[styles.scoreBadgeMiniText, { color: gad7Score >= 10 ? colors.error : colors.success }]}>
+                    {gad7Score <= 4 ? "Minimal" : gad7Score <= 9 ? "Mild" : gad7Score <= 14 ? "Moderate" : "Severe"}
                   </Text>
                 </View>
               </View>
-              <Text style={styles.scoreValue}>{reqolScore}<Text style={styles.scoreMax}>/40</Text></Text>
-              <Text style={styles.scoreLabel}>WELL-BEING</Text>
-              
+              <Text style={styles.scoreValue}>{gad7Score}<Text style={styles.scoreMax}>/21</Text></Text>
+              <Text style={styles.scoreLabel}>GAD-7 ANXIETY</Text>
+
               <View style={styles.metricTrack}>
-                <View 
+                <View
                   style={[
-                    styles.metricFill, 
-                    { 
-                      width: `${(reqolScore / 40) * 100}%`, 
-                      backgroundColor: reqolScore >= 25 ? colors.success : colors.warning 
+                    styles.metricFill,
+                    {
+                      width: `${Math.min((gad7Score / 21) * 100, 100)}%`,
+                      backgroundColor: gad7Score <= 9 ? colors.success : gad7Score <= 14 ? colors.warning : colors.error
                     }
-                  ]} 
+                  ]}
                 />
               </View>
-              <Text style={styles.metricDesc}>Higher score = better wellbeing</Text>
+              <Text style={styles.metricDesc}>Lower score = calmer mind</Text>
             </View>
           </View>
         )}
@@ -717,10 +709,10 @@ export default function DashboardScreen() {
             {(() => {
               const todayStr = new Date().toISOString().split('T')[0];
               const todaysAppts = appointments?.filter((appt: any) => appt.date === todayStr && (appt.status === "accepted" || appt.status === "pending")) || [];
-              
+
               if (todaysAppts.length === 0) {
                 return (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.appointmentPromoCard}
                     activeOpacity={0.9}
                     onPress={() => router.push('/(auth)/tools/appointments' as any)}
@@ -756,7 +748,7 @@ export default function DashboardScreen() {
                         />
                         <View style={styles.appointmentRow}>
                           <View style={[styles.appointmentIconCircle, { backgroundColor: colors.primary + '15' }]}>
-                             <Ionicons name="calendar" size={22} color={colors.primary} />
+                            <Ionicons name="calendar" size={22} color={colors.primary} />
                           </View>
                           <View style={styles.appointmentContent}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -782,12 +774,12 @@ export default function DashboardScreen() {
         {/* Tools Grid */}
         <View style={styles.toolsGrid}>
           {tools.map((tool) => (
-            <View key={tool.id} style={tool.highlighted && { width: '100%', marginBottom: 8 }}>
+            <View key={tool.id}>
               <ToolCard
                 tool={tool}
                 colors={colors}
                 styles={styles}
-                isFullWidth={!!tool.highlighted}
+                isFullWidth={false}
                 onPress={() => {
                   if (tool.locked) {
                     Alert.alert("Locked Module", "Please complete your initial Screening Test first to unlock therapeutic tools.");
@@ -827,14 +819,15 @@ export default function DashboardScreen() {
                     onPress={() => setSelectedEmotionId(emotion.id)}
                     style={[
                       styles.modalOptionCard,
-                      isSelected && { borderColor: emotion.color, backgroundColor: emotion.color + '15' }
+                      { backgroundColor: emotion.color + '0D', borderColor: emotion.color + '30' },
+                      isSelected && { borderColor: emotion.color, backgroundColor: emotion.color + '22', borderWidth: 2 }
                     ]}
                   >
-                    <Text style={[styles.modalOptionEmoji, isSelected && { transform: [{ scale: 1.1 }] }]}>
-                      {emotion.label.split(' ')[0]}
+                    <Text style={[styles.modalOptionEmoji, isSelected && { transform: [{ scale: 1.15 }] }]}>
+                      {emotion.emoji}
                     </Text>
                     <Text style={[styles.modalOptionText, isSelected && { color: emotion.color, fontFamily: Theme.fontFamily.bold }]}>
-                      {emotion.label.split(' ').slice(1).join(' ')}
+                      {emotion.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -979,50 +972,79 @@ const stylesFactory = (colors: any) => ({
   },
   // Inline mood checkin styles
   inlineCheckInContainer: {
-    borderRadius: Theme.borderRadius.lg,
+    borderRadius: 20,
     padding: Theme.spacing.lg,
     marginBottom: Theme.spacing.xl,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(124, 92, 255, 0.08)',
-    ...Theme.shadows.secondary,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    ...Theme.shadows.primary,
   } as const,
+  inlineCheckInHeaderRow: {
+    marginBottom: 6,
+  },
+  sparkleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  sparkleBadgeText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 10,
+    color: colors.primary,
+    letterSpacing: 0.8,
+  },
   inlineCheckInTitle: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 16,
+    fontSize: 18,
     color: colors.text,
     marginBottom: 4,
+    marginTop: 4,
   },
   inlineCheckInSubtitle: {
     fontFamily: Theme.fontFamily.medium,
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
     marginBottom: Theme.spacing.md,
+    lineHeight: 18,
   },
   inlineMoodScroll: {
     paddingVertical: 4,
     gap: 10,
+    flexDirection: 'row',
   } as const,
   inlineMoodCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: Theme.borderRadius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderWidth: 1.5,
-    minWidth: 80,
     ...Theme.shadows.tertiary,
   } as const,
+  inlineEmojiBubble: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+  } as const,
   inlineMoodEmoji: {
-    fontSize: 22,
-    marginBottom: 2,
+    fontSize: 18,
   },
   inlineMoodText: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 10,
-    color: colors.textSecondary,
-    textAlign: 'center',
+    fontSize: 13,
+    color: colors.text,
+    textAlign: 'left',
   },
   // Onboarding styles (when screening not complete)
   onboardingCard: {

@@ -33,7 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 
 const { width } = Dimensions.get("window");
-const emotyBoyAvatar = require("@/assets/emoty_boy_avatar.png");
+const emotyBoyAvatar = require("@/assets/emoty_boy_avatar.jpg");
 
 // Starter prompts
 const STARTER_PROMPTS = [
@@ -550,13 +550,6 @@ export default function AICompanionScreen() {
             </View>
           </View>
 
-          <TouchableOpacity
-            onPress={handleClearChat}
-            style={styles.headerAction}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="trash-outline" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
         </BlurView>
 
         {messages.length === 0 ? (

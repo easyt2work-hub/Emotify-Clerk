@@ -88,7 +88,7 @@ export default function Login() {
               <Phone size={18} className="input-icon" />
               <input
                 type="text"
-                placeholder="1234567890"
+                placeholder="Enter the admin number"
                 value={mobileNumber}
                 onChange={(e) => setMobileNumber(e.target.value)}
               />
@@ -101,7 +101,7 @@ export default function Login() {
               <Lock size={18} className="input-icon" />
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
+                placeholder="Enter the admin password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 style={{ paddingRight: "48px" }}

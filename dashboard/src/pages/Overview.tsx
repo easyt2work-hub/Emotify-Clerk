@@ -1,76 +1,114 @@
+import { useState } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
-import { Activity, AlertTriangle, BrainCircuit, HeartPulse, TrendingUp, Download, Clock, ShieldAlert, CheckCircle2, Calendar } from "lucide-react";
+import { api } from "../../convex/_generated/api";
+import { Activity, AlertTriangle, BrainCircuit, HeartPulse, TrendingUp, Download, Clock, ShieldAlert, CheckCircle2, Calendar, UserPlus, Zap } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LoadingState, EmptyState } from "../components/UIComponents";
+import EnrollPatientModal from "../components/EnrollPatientModal";
 
 export default function Overview() {
   const data = useQuery(api.dashboard.getDashboardOverview);
   const feed = useQuery(api.dashboard.getActivityFeed);
   const allAppointments = useQuery(api.appointments.listAllTwoWayAppointments);
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todaysAppointments = allAppointments?.filter(a => a.date === todayStr) || [];
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
 
-  // Use real trend data if available, else empty
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todaysAppointments = allAppointments?.filter((a: any) => a.date === todayStr) || [];
   const chartData = data?.trendData?.length ? data.trendData : [];
+
+  const handleExportReport = () => {
+    window.print();
+  };
+
+  if (data === undefined || feed === undefined) {
+    return <LoadingState message="Connecting to institutional telemetry..." />;
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }} className="animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      {/* Top Header Bar with Quick Action Hub */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '2.4rem', marginBottom: '8px', color: 'var(--text-primary)' }}>Command Center</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>Live monitoring of institutional mental health metrics</p>
+          <h1 style={{ fontSize: '2.4rem', marginBottom: '4px', color: 'var(--text-primary)' }}>Command Center</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="live-pulse-green"></span> Live monitoring of institutional mental health metrics
+          </p>
         </div>
-        <button className="btn btn-secondary">
-          <Download size={18} /> Export Report
-        </button>
+
+        {/* Quick Action Hub */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowEnrollModal(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+              boxShadow: "0 4px 14px rgba(37, 99, 235, 0.3)",
+              fontWeight: 700
+            }}
+          >
+            <UserPlus size={18} /> + Add Patient / Rapid Triage
+          </button>
+        </div>
       </div>
 
+      {/* Metric Cards with Glassmorphism Soft Depth & Live Pulse Animations */}
       <div className="grid-3">
-        <div className="glass-panel hud-panel glass-panel-hover animate-fade-in delay-1" style={{ borderTop: '2px solid var(--accent-primary)' }}>
+        <div className="glass-panel hud-panel glass-panel-hover glass-soft-depth animate-fade-in delay-1" style={{ borderTop: '3px solid var(--accent-primary)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
             <div style={{ padding: '14px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '14px', color: 'var(--accent-primary)' }}>
               <HeartPulse size={28} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
               <span className="badge badge-blue">Active Base</span>
-              <span className="hud-tag" style={{ fontSize: '0.6rem', padding: '2px 6px' }}>SYS: ONLINE</span>
+              <span className="hud-tag" style={{ fontSize: '0.65rem', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <span className="live-pulse-green"></span> LIVE SYNC
+              </span>
             </div>
           </div>
           <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Total Enrolled Patients</h3>
-          <p className="hud-num" style={{ fontSize: '3.2rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0 }}>{data ? data.totalPatients : '...'}</p>
+          <p className="hud-num" style={{ fontSize: '3.2rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0 }}>{data?.totalPatients ?? 0}</p>
         </div>
 
-        <div className="glass-panel hud-panel glass-panel-hover animate-fade-in delay-2" style={{ borderTop: '2px solid var(--danger)' }}>
+        <div className="glass-panel hud-panel glass-panel-hover glass-soft-depth animate-fade-in delay-2" style={{ borderTop: '3px solid var(--danger)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
             <div style={{ padding: '14px', background: 'rgba(244, 63, 94, 0.1)', borderRadius: '14px', color: 'var(--danger)' }}>
               <AlertTriangle size={28} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-              <span className="badge badge-red">{data?.suicideRisks || 0} Critical</span>
-              <span className="hud-tag" style={{ fontSize: '0.6rem', padding: '2px 6px', color: 'var(--danger)', background: 'rgba(244, 63, 94, 0.08)', borderColor: 'rgba(244, 63, 94, 0.25)' }}>TRIAGE: ALERT</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+              <span className="badge badge-red">{data?.severeCases || 0} Critical</span>
+              <span className="hud-tag" style={{ fontSize: '0.65rem', padding: '3px 8px', color: 'var(--danger)', background: 'rgba(244, 63, 94, 0.08)', borderColor: 'rgba(244, 63, 94, 0.25)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <span className="live-pulse-red"></span> TRIAGE: ALERT
+              </span>
             </div>
           </div>
           <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Severe / Critical Risk</h3>
           <p className="hud-num" style={{ fontSize: '3.2rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0 }}>
-            {data ? data.severeCases : '...'}
+            {data?.severeCases ?? 0}
           </p>
         </div>
 
-        <div className="glass-panel hud-panel glass-panel-hover animate-fade-in delay-3" style={{ borderTop: '2px solid var(--warning)' }}>
+        <div className="glass-panel hud-panel glass-panel-hover glass-soft-depth animate-fade-in delay-3" style={{ borderTop: '3px solid var(--warning)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
             <div style={{ padding: '14px', background: 'rgba(249, 115, 22, 0.1)', borderRadius: '14px', color: 'var(--warning)' }}>
               <BrainCircuit size={28} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
               <span className="badge badge-orange">{data?.activeAlertsCount || 0} Open</span>
-              <span className="hud-tag" style={{ fontSize: '0.6rem', padding: '2px 6px', color: 'var(--warning)', background: 'rgba(249, 115, 22, 0.08)', borderColor: 'rgba(249, 115, 22, 0.25)' }}>SYNC: LIVE</span>
+              <span className="hud-tag" style={{ fontSize: '0.65rem', padding: '3px 8px', color: 'var(--warning)', background: 'rgba(249, 115, 22, 0.08)', borderColor: 'rgba(249, 115, 22, 0.25)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <span className="live-pulse-green"></span> SYNC: LIVE
+              </span>
             </div>
           </div>
           <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Active Clinical Alerts</h3>
-          <p className="hud-num" style={{ fontSize: '3.2rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0 }}>{data ? data.activeAlertsCount : '...'}</p>
+          <p className="hud-num" style={{ fontSize: '3.2rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0 }}>{data?.activeAlertsCount ?? 0}</p>
         </div>
       </div>
+
+      {showEnrollModal && <EnrollPatientModal onClose={() => setShowEnrollModal(false)} />}
 
       <div className="grid-2">
         <div className="glass-panel hud-panel animate-fade-in delay-2">
@@ -98,18 +136,13 @@ export default function Overview() {
                   <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dy={10} />
                   <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <Tooltip 
-                    contentStyle={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', color: 'var(--text-primary)' }}
-                    itemStyle={{ color: 'var(--text-primary)' }}
-                  />
-                  <Area type="monotone" dataKey="severe" stroke="#f43f5e" strokeWidth={3} fillOpacity={1} fill="url(#colorSevere)" />
-                  <Area type="monotone" dataKey="moderate" stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#colorMod)" />
+                  <Tooltip />
+                  <Area type="monotone" dataKey="severe" name="Severe Triage" stroke="#f43f5e" fillOpacity={1} fill="url(#colorSevere)" strokeWidth={3} />
+                  <Area type="monotone" dataKey="moderate" name="Moderate Triage" stroke="#f97316" fillOpacity={1} fill="url(#colorMod)" strokeWidth={3} />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
-                Waiting for clinical data...
-              </div>
+              <EmptyState title="No Telemetry Data" description="Longitudinal severity trends will render as assessments are logged." />
             )}
           </div>
         </div>
@@ -126,11 +159,9 @@ export default function Overview() {
              </span>
            </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1, paddingRight: '8px' }}>
-            {!feed ? (
-              <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '20px' }}>Loading feed...</p>
-            ) : feed.length === 0 ? (
-              <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '20px' }}>No recent activity.</p>
-            ) : feed.map((item) => (
+            {feed.length === 0 ? (
+              <EmptyState title="No Activity Logs" description="Recent patient check-ins and clinical alerts will stream here." />
+            ) : feed.map((item: any) => (
               <div key={item.id} style={{ 
                 padding: '16px 20px', 
                 background: 'var(--surface-base)', 
@@ -165,36 +196,29 @@ export default function Overview() {
       <div className="glass-panel hud-panel animate-fade-in delay-4">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <h3 style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            <Calendar size={20} color="var(--accent-primary)" />
-            Today's Appointments
+            <Calendar size={20} color="var(--accent-secondary)" />
+            Today's Handshake Schedule ({todaysAppointments.length})
           </h3>
-          <button className="btn btn-secondary" onClick={() => window.location.hash = '#/sessions'} style={{ fontSize: '0.85rem', padding: '6px 12px' }}>
-            View All
-          </button>
+          <span className="hud-tag">SCHEDULE</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {allAppointments === undefined ? (
-            <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
-          ) : todaysAppointments.length === 0 ? (
-            <div style={{ padding: '24px', textAlign: 'center', background: 'var(--surface-base)', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
-              <p style={{ color: 'var(--text-secondary)', margin: 0 }}>No appointments scheduled for today.</p>
-            </div>
+          {todaysAppointments.length === 0 ? (
+            <EmptyState title="No Appointments Today" description="There are no clinical sessions scheduled for today." />
           ) : (
-            todaysAppointments.map(appt => (
+            todaysAppointments.map((appt: any) => (
               <div key={appt._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--surface-base)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                   <div style={{ padding: '10px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent-primary)', borderRadius: '10px' }}>
-                    <Clock size={20} />
+                    <Calendar size={20} />
                   </div>
                   <div>
-                    <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: 'var(--text-primary)' }}>{appt.patientName}</h4>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{appt.time} • {appt.title}</span>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', fontWeight: 700 }}>{appt.patientName} — {appt.title}</h4>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Reason: {appt.reason || "Routine Check-in"}</p>
                   </div>
                 </div>
-                <div>
-                  <span className={`badge ${appt.status === 'accepted' ? 'badge-green' : appt.status === 'pending' ? 'badge-orange' : ''}`}>
-                    {appt.status}
-                  </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent-primary)' }}>{appt.time}</span>
+                  <span className="badge badge-green">{appt.status}</span>
                 </div>
               </div>
             ))

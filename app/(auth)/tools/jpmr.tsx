@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Animated, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { useAppAuth } from "@/utils/auth";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors } from "@/constants/Colors";
 import { Theme } from "@/constants/Theme";
@@ -87,7 +87,7 @@ const JPMR_STEPS: JPMRStep[] = [
     video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-woman-lying-on-bed-stretching-and-relaxing-42358-large.mp4" }
   },
   {
-    title: "Thighs",
+    title: "Thighs & Legs",
     tenseScript: "Squeeze your thigh muscles tightly. Hold the tension in your thighs for 5 seconds.",
     releaseScript: "Release. Let your thigh muscles go completely loose. Notice the warm, heavy sensation.",
     video: { uri: "https://assets.mixkit.co/videos/preview/mixkit-woman-lying-on-bed-stretching-and-relaxing-42358-large.mp4" }
@@ -255,17 +255,22 @@ export default function JPMRScreen() {
   const [waitingForProceed, setWaitingForProceed] = useState(false);
 
   const insets = useSafeAreaInsets();
-  const currentStepData = JPMR_STEPS[activeStep];
+  const jpmrVideosFromConvex = useQuery(api.jpmrVideos.getJpmrVideos);
 
-  const videoPlayer = useVideoPlayer(currentStepData?.video || null, (playerInstance) => {
+  const currentStepData = JPMR_STEPS[activeStep];
+  const videoUri = (jpmrVideosFromConvex && jpmrVideosFromConvex[activeStep])
+    ? jpmrVideosFromConvex[activeStep]
+    : currentStepData?.video?.uri || "https://assets.mixkit.co/videos/preview/mixkit-woman-doing-breathing-exercises-42289-large.mp4";
+
+  const videoPlayer = useVideoPlayer({ uri: videoUri }, (playerInstance) => {
     playerInstance.loop = true;
     playerInstance.muted = true;
   });
 
   // Sync video source with active step and play state
   useEffect(() => {
-    if (currentStepData?.video) {
-      videoPlayer.replaceAsync(currentStepData.video).then(() => {
+    if (videoUri) {
+      videoPlayer.replaceAsync({ uri: videoUri }).then(() => {
         videoPlayer.loop = true;
         videoPlayer.muted = true;
         if (isPlaying && step === 2) {
@@ -275,7 +280,7 @@ export default function JPMRScreen() {
         console.error("Error setting video source", err);
       });
     }
-  }, [activeStep, currentStepData, isPlaying, step]);
+  }, [activeStep, videoUri, isPlaying, step]);
 
   // Load saved session if exists
   useEffect(() => {
@@ -590,14 +595,14 @@ export default function JPMRScreen() {
       case 'SPEAK_RELEASE':
         return (
           <View style={styles.circleContent}>
-            <Ionicons name="volume-medium-outline" size={42} color={Colors.primary} />
+            <Ionicons name="volume-medium-outline" size={30} color={Colors.primary} />
             <Text style={[styles.circleLabel, { color: Colors.primary }]}>Listen</Text>
           </View>
         );
       case 'TENSE_WAITING':
         return (
           <View style={styles.circleContent}>
-            <Ionicons name="play" size={42} color={Colors.primary} />
+            <Ionicons name="play" size={28} color={Colors.primary} />
             <Text style={[styles.circleLabel, { color: Colors.primary }]}>Start</Text>
           </View>
         );
@@ -673,7 +678,7 @@ export default function JPMRScreen() {
               <VideoView
                 player={videoPlayer}
                 style={StyleSheet.absoluteFill}
-                allowsFullscreen={false}
+                fullscreenOptions={{ enable: false }}
                 nativeControls={false}
               />
               <View style={styles.videoBadge}>
@@ -687,26 +692,26 @@ export default function JPMRScreen() {
               disabled={!(playState === 'TENSE_WAITING' || waitingForProceed)}
               style={styles.playerWrapper}
             >
-              <Svg width={180} height={180} viewBox="0 0 180 180">
+              <Svg width={130} height={130} viewBox="0 0 130 130">
                 <Circle
-                  cx={90}
-                  cy={90}
-                  r={70}
+                  cx={65}
+                  cy={65}
+                  r={52}
                   stroke="#EBE9FE"
-                  strokeWidth={8}
+                  strokeWidth={6}
                   fill="transparent"
                 />
                 <Circle
-                  cx={90}
-                  cy={90}
-                  r={70}
+                  cx={65}
+                  cy={65}
+                  r={52}
                   stroke={Colors.primary}
-                  strokeWidth={8}
+                  strokeWidth={6}
                   fill="transparent"
-                  strokeDasharray={440}
-                  strokeDashoffset={strokeDashoffset}
+                  strokeDasharray={327}
+                  strokeDashoffset={327 - (327 * progress) / 100}
                   strokeLinecap="round"
-                  transform="rotate(-90 90 90)"
+                  transform="rotate(-90 65 65)"
                 />
               </Svg>
               <View style={styles.circleContentOverlay}>
@@ -855,18 +860,18 @@ const styles = StyleSheet.create({
   },
   videoContainer: {
     width: width - Theme.spacing.lg * 2,
-    height: 200,
-    borderRadius: 24,
+    height: 190,
+    borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.7)',
+    backgroundColor: '#000',
+    borderWidth: 2,
+    borderColor: '#7C3AED',
     marginBottom: Theme.spacing.lg,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.05,
-    shadowRadius: 16,
-    elevation: 3,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
     position: 'relative',
   },
   videoPlayer: {
@@ -875,26 +880,28 @@ const styles = StyleSheet.create({
   },
   videoBadge: {
     position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    top: 10,
+    left: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   videoBadgeText: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 10,
+    fontSize: 9,
     color: '#FFF',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   title: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: Theme.fontSize.xl,
     color: Colors.text,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
     paddingHorizontal: Theme.spacing.md,
   },
   subtitle: {
@@ -902,7 +909,7 @@ const styles = StyleSheet.create({
     fontSize: Theme.fontSize.sm,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: Theme.spacing.xl,
+    marginBottom: Theme.spacing.lg,
     paddingHorizontal: Theme.spacing.md,
   },
   ratingCard: {
@@ -942,11 +949,11 @@ const styles = StyleSheet.create({
   },
   playerWrapper: {
     position: 'relative',
-    width: 180,
-    height: 180,
+    width: 130,
+    height: 130,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Theme.spacing.xl,
+    marginVertical: Theme.spacing.md,
   },
   circleContentOverlay: {
     position: 'absolute',
@@ -959,12 +966,12 @@ const styles = StyleSheet.create({
   },
   circleValue: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 54,
-    lineHeight: 60,
+    fontSize: 40,
+    lineHeight: 46,
   },
   circleLabel: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: Theme.fontSize.sm,
+    fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginTop: -2,

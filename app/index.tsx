@@ -136,7 +136,7 @@ export default function Index() {
         <VideoView
           player={player}
           style={StyleSheet.absoluteFill}
-          allowsFullscreen={false}
+          fullscreenOptions={{ enable: false }}
           nativeControls={false}
           contentFit="cover"
         />

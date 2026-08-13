@@ -4,6 +4,7 @@ import { v } from "convex/values";
 export default defineSchema({
   users: defineTable({
     // Custom authentication fields
+    patientId: v.optional(v.string()), // Unique patient ID like 101, 102, 103 based on creation order
     full_name: v.optional(v.string()),
     email: v.optional(v.string()),
     mobile_number: v.optional(v.string()),
@@ -36,6 +37,7 @@ export default defineSchema({
     screeningComplete: v.optional(v.boolean()),
     biometricEnabled: v.optional(v.boolean()),
     lastLoginAt: v.optional(v.number()),
+    temp_password: v.optional(v.string()), // Transient plain-text password shown to admin after reset, cleared after viewing
   })
     .index("by_clerkId", ["clerkId"])
     .index("by_mobile_number", ["mobile_number"])
@@ -57,7 +59,7 @@ export default defineSchema({
     description: v.optional(v.string()),
     status: v.string(), // "pending" | "waiting" | "accepted" | "rejected" | "completed" | "scheduled" | "cancelled"
     createdAt: v.number(),
-    
+
     // New fields for two-way system
     title: v.optional(v.string()),
     createdBy: v.optional(v.string()), // "admin" | "user"
@@ -83,8 +85,8 @@ export default defineSchema({
     phq9_total: v.number(),
     gad7_total: v.number(),
     pq16_total: v.number(),
-    wsas_total: v.number(),
-    reqol10_total: v.number(),
+    wsas_total: v.optional(v.number()),
+    reqol10_total: v.optional(v.number()),
     phq9_item9_flag: v.boolean(),
     phq9_item9_score: v.number(),
     createdAt: v.number(),
@@ -216,6 +218,9 @@ export default defineSchema({
     thought_original: v.optional(v.string()),
     situation_text: v.optional(v.string()),
     timestamp: v.number(),
+    status: v.optional(v.string()), // "pending" | "scheduled" | "completed" | "dismissed"
+    notes: v.optional(v.string()),
+    updatedAt: v.optional(v.number()),
   }).index("by_user_id", ["user_id"]),
 
   followUps: defineTable({
@@ -253,6 +258,16 @@ export default defineSchema({
     .index("by_createdAt", ["createdAt"]),
 
   companionMessages: defineTable({
+    messageId: v.string(),
+    userId: v.string(),
+    role: v.string(), // "user" | "assistant"
+    content: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_and_createdAt", ["userId", "createdAt"]),
+
+  aiCompanionLogs: defineTable({
     messageId: v.string(),
     userId: v.string(),
     role: v.string(), // "user" | "assistant"
@@ -394,4 +409,92 @@ export default defineSchema({
     createdAt: v.number(),
     expiresAt: v.number(),
   }).index("by_key", ["key"]),
+
+  // ENTERPRISE HEALTHCARE MODULE TABLES
+  counsellors: defineTable({
+    userId: v.optional(v.id("users")),
+    name: v.string(),
+    email: v.string(),
+    phone: v.string(),
+    role: v.string(), // "counsellor" | "senior_psychiatrist" | "lead"
+    availability: v.array(v.string()),
+    maxWorkload: v.number(),
+    currentWorkload: v.optional(v.number()),
+    rating: v.number(),
+    status: v.string(), // "active" | "inactive" | "on_leave"
+    createdAt: v.number(),
+  }).index("by_status", ["status"]),
+
+  clinicalTimelines: defineTable({
+    userId: v.string(),
+    eventType: v.string(), // "created" | "screening" | "appointment" | "cbt" | "ai_alert" | "intervention" | "risk_reduced" | "case_closed"
+    title: v.string(),
+    description: v.string(),
+    performedBy: v.optional(v.string()),
+    timestamp: v.number(),
+    metadata: v.optional(v.string()),
+  }).index("by_userId", ["userId"]),
+
+  aiMonitoringLogs: defineTable({
+    userId: v.string(),
+    prompt: v.string(),
+    aiResponse: v.string(),
+    riskScore: v.number(),
+    riskCategory: v.string(), // "low" | "moderate" | "severe" | "critical"
+    flaggedKeywords: v.array(v.string()),
+    aiConfidence: v.number(),
+    escalated: v.boolean(),
+    reviewed: v.boolean(),
+    reviewer: v.optional(v.string()),
+    reviewNotes: v.optional(v.string()),
+    timestamp: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_riskCategory", ["riskCategory"]),
+
+  notifications: defineTable({
+    recipientId: v.string(),
+    type: v.string(), // "critical_risk" | "appointment" | "password_reset" | "counsellor_request" | "new_user" | "reminder" | "resolved_alert"
+    title: v.string(),
+    message: v.string(),
+    priority: v.string(), // "low" | "medium" | "high" | "critical"
+    read: v.boolean(),
+    archived: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_recipientId", ["recipientId"])
+    .index("by_read", ["read"]),
+
+  loginHistory: defineTable({
+    userId: v.string(),
+    status: v.string(), // "success" | "failed"
+    ipAddress: v.optional(v.string()),
+    browser: v.optional(v.string()),
+    device: v.optional(v.string()),
+    location: v.optional(v.string()),
+    timestamp: v.number(),
+  }).index("by_userId", ["userId"]),
+
+  systemSettings: defineTable({
+    key: v.string(),
+    value: v.string(),
+    category: v.string(), // "hospital" | "security" | "ai" | "notification" | "branding"
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
+
+  trash: defineTable({
+    itemType: v.string(), // "patient" | "appointment" | "alert" | "session"
+    itemId: v.string(),
+    deletedData: v.string(),
+    deletedBy: v.string(),
+    deletedAt: v.number(),
+  }).index("by_itemType", ["itemType"]),
+
+  jpmrVideos: defineTable({
+    stepIndex: v.number(),
+    title: v.string(),
+    storageId: v.id("_storage"),
+    createdAt: v.number(),
+  }).index("by_stepIndex", ["stepIndex"]),
 });
+

@@ -204,10 +204,8 @@ async function generateRecommendedGoals(ctx: any, userId: string, mood: string) 
     .withIndex("by_userId", (q: any) => q.eq("userId", userId))
     .order("desc")
     .first();
-  const wsasTotal = screenings?.wsas_total || 0;
-
-  const isSevere = wsasTotal > 20 || triageLevel === "severe" || triageLevel === "suicide_flag" || triageLevel === "psychosis_flag";
-  const isModerate = wsasTotal >= 11 && wsasTotal <= 20;
+  const isSevere = triageLevel === "severe" || triageLevel === "suicide_flag" || triageLevel === "psychosis_flag";
+  const isModerate = triageLevel === "moderate";
 
   // Adapt lists based on clinical severity
   let smallList = [...TEMPLATES.small];
@@ -234,7 +232,7 @@ async function generateRecommendedGoals(ctx: any, userId: string, mood: string) 
 
   // Store in database
   const insertedIds = [];
-  
+
   // Helper to insert a goal
   const insertGoal = async (g: GoalTemplate, isChallenge = false, isOptional = false) => {
     return await ctx.db.insert("microGoals", {
@@ -288,13 +286,28 @@ export const getTodayGoals = query({
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const endOfDay = startOfDay + 24 * 60 * 60 * 1000;
-    
+
     const goals = await ctx.db
       .query("microGoals")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .collect();
-      
+
     return goals.filter((g) => g.createdAt >= startOfDay && g.createdAt < endOfDay);
+  },
+});
+
+export const getUserGoals = query({
+  args: { userId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const userId = identity.subject;
+
+    return await ctx.db
+      .query("microGoals")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .order("desc")
+      .collect();
   },
 });
 
@@ -336,19 +349,19 @@ export const getWeeklySummary = query({
     const userId = identity.subject;
 
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    
+
     const allGoals = await ctx.db
       .query("microGoals")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .collect();
-      
+
     const recentGoals = allGoals.filter((g) => g.createdAt >= sevenDaysAgo);
     const completed = recentGoals.filter((g) => g.completed);
-    
+
     const pointsEarned = completed.reduce((sum, g) => sum + (g.xpAwarded || g.points), 0);
     const totalCount = recentGoals.length;
     const completionRate = totalCount > 0 ? (completed.length / totalCount) * 100 : 0;
-    
+
     return {
       completedCount: completed.length,
       pointsEarned,
@@ -545,9 +558,15 @@ export const submitMorningCheckin = mutation({
       .query("microGoals")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .collect();
-    
+
     const uncompletedToday = todayGoals.filter(
-      (g) => g.createdAt >= startOfDay.getTime() && !g.completed && !g.skipped
+      (g) =>
+        g.createdAt >= startOfDay.getTime() &&
+        !g.completed &&
+        !g.skipped &&
+        !g.cbtSessionId &&
+        g.category?.toLowerCase() !== "cbt" &&
+        !g.category?.toLowerCase()?.includes("cbt")
     );
     for (const g of uncompletedToday) {
       await ctx.db.delete(g._id);
@@ -672,7 +691,7 @@ async function completeGoalWithFeelingHelper(
 
   const todayGoals = allTodayGoals.filter((g: any) => g.createdAt >= startOfDay.getTime());
   const uncompletedCount = todayGoals.filter((g: any) => !g.completed && !g.skipped && g._id !== args.id).length;
-  
+
   let perfectDayBonus = false;
   if (uncompletedCount === 0 && todayGoals.length > 0) {
     perfectDayBonus = true;
@@ -712,7 +731,7 @@ async function completeGoalWithFeelingHelper(
         currentStreak = 1;
       }
       longestStreak = Math.max(streakRecord.longestStreak, currentStreak);
-      
+
       await ctx.db.patch(streakRecord._id, {
         currentStreak,
         longestStreak,
@@ -813,7 +832,7 @@ async function completeGoalWithFeelingHelper(
     .query("badges")
     .withIndex("by_userId", (q: any) => q.eq("userId", userId))
     .collect();
-  
+
   const hasBadge = (badgeId: string) => existingBadges.some((b: any) => b.badgeId === badgeId);
 
   const awardBadge = async (badgeId: string, badgeName: string) => {

@@ -28,6 +28,12 @@ export default function TabLayout() {
 
   const createAlert = useMutation(api.alerts.createAlert);
 
+  React.useEffect(() => {
+    if (latestTriage?.level === "force_retest") {
+      router.replace("/(auth)/screening");
+    }
+  }, [latestTriage?.level]);
+
   const isEmergency = latestTriage?.level === "suicide_flag" && !dismissedEmergency;
 
   const handleTalkToCounselor = async () => {
@@ -85,7 +91,7 @@ export default function TabLayout() {
     );
   }
 
-  const isScreeningComplete = !!appUser?.screeningComplete;
+  const isScreeningComplete = (!!appUser?.screeningComplete) && latestTriage?.level !== "force_retest";
 
   return (
     <Tabs

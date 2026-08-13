@@ -1,16 +1,49 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { 
-  ArrowLeft, User, Phone, Calendar, Heart, Shield, TrendingUp, AlertTriangle, 
-  Brain, Smile, CheckCircle, HelpCircle, MessageSquare, Award, Clock, ArrowRight 
+import {
+  ArrowLeft, User, Phone, Calendar, Heart, Shield, TrendingUp, AlertTriangle,
+  Brain, Smile, CheckCircle, HelpCircle, MessageSquare, Award, Clock, ArrowRight,
+  Unlock, RefreshCw
 } from "lucide-react";
-import { 
+import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, Cell
 } from "recharts";
+
+/* ─── Avatar helper (same as PatientsList) ────────────────────── */
+function Avatar({ name, size = 44 }: { name: string; size?: number }) {
+  const initials = name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+  const hue = [...name].reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: Math.round(size * 0.27),
+        background: `linear-gradient(135deg, hsl(${hue},60%,55%), hsl(${(hue + 40) % 360},65%,60%))`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        fontWeight: 700,
+        fontSize: size > 50 ? "1.2rem" : "0.85rem",
+        color: "#fff",
+        letterSpacing: "0.04em",
+        boxShadow: `0 4px 14px hsl(${hue},50%,55%,0.3)`,
+      }}
+    >
+      {initials}
+    </div>
+  );
+}
 
 export default function PatientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -20,12 +53,53 @@ export default function PatientDetail() {
   const [activeTab, setActiveTab] = useState<"screenings" | "cbt">("screenings");
   const [selectedSession, setSelectedSession] = useState<any | null>(null);
 
+  // Unblock modal state
+  const [showUnblockModal, setShowUnblockModal] = useState(false);
+  const [isSubmittingUnblock, setIsSubmittingUnblock] = useState(false);
+
   // Load patient user profile
   const patient = useQuery(api.users.getByClerkId, { clerkId: id || "" });
   // Load patient clinical test results
   const testResults = useQuery(api.screening.getAll, { userId: id || "" });
   // Load patient CBT therapy session records
   const cbtAnalytics = useQuery(api.dashboard.getPatientCbtAnalytics, { userId: id || "" });
+  // Load latest triage status for this patient
+  const latestTriage = useQuery(api.triage.getLatestByUserId, { userId: id || "" });
+
+  const unblockPatientMutation = useMutation(api.triage.unblockPatient);
+  const triggerScreeningMutation = useMutation(api.triage.triggerScreeningTest);
+
+  // Custom Trigger Screening Modal State
+  const [showTriggerModal, setShowTriggerModal] = useState(false);
+  const [triggerSuccessMsg, setTriggerSuccessMsg] = useState(false);
+  const [isTriggeringTest, setIsTriggeringTest] = useState(false);
+
+  const confirmAndTriggerScreening = async () => {
+    if (!id) return;
+    try {
+      setIsTriggeringTest(true);
+      await triggerScreeningMutation({ userId: id });
+      setTriggerSuccessMsg(true);
+    } catch (e: any) {
+      alert("Error triggering screening test: " + (e.message || e.toString()));
+      setShowTriggerModal(false);
+    } finally {
+      setIsTriggeringTest(false);
+    }
+  };
+
+  const handleUnblockAction = async (action: "switch_moderate" | "switch_low" | "force_retest") => {
+    if (!id) return;
+    try {
+      setIsSubmittingUnblock(true);
+      await unblockPatientMutation({ userId: id, action });
+      setShowUnblockModal(false);
+    } catch (e: any) {
+      alert("Error unblocking patient: " + (e.message || e.toString()));
+    } finally {
+      setIsSubmittingUnblock(false);
+    }
+  };
 
   if (patient === undefined || testResults === undefined || cbtAnalytics === undefined) {
     return (
@@ -46,6 +120,9 @@ export default function PatientDetail() {
     );
   }
 
+  const currentLevel = latestTriage?.level || "mild";
+  const isSevere = currentLevel === "severe" || currentLevel === "suicide_flag" || currentLevel === "psychosis_flag";
+
   // Format chart data for screenings
   const chartData = [...(testResults || [])]
     .reverse()
@@ -56,92 +133,175 @@ export default function PatientDetail() {
         PHQ9: test.phq9_total,
         GAD7: test.gad7_total,
         PQ16: test.pq16_total,
-        WSAS: test.wsas_total,
-        ReQoL10: test.reqol10_total,
       };
     });
 
   // Parse CBT thinking traps stats for Bar Chart
-  const thinkingTrapChartData = cbtAnalytics 
+  const thinkingTrapChartData = cbtAnalytics
     ? Object.keys(cbtAnalytics.thinkingStyleTrends).map(key => ({
-        name: key.replace("I'm worried about ", "Worried about ").replace("I feel I should have ", "Should have ").replace("I feel stuck because ", "Stuck / "),
-        Sessions: cbtAnalytics.thinkingStyleTrends[key]
-      }))
+      name: key.replace("I'm worried about ", "Worried about ").replace("I feel I should have ", "Should have ").replace("I feel stuck because ", "Stuck / "),
+      Sessions: cbtAnalytics.thinkingStyleTrends[key]
+    }))
     : [];
 
   const barColors = ["#6366f1", "#06b6d4", "#f59e0b", "#ec4899", "#10b981", "#8b5cf6"];
 
+  const triageBg = isSevere
+    ? "rgba(239,68,68,0.06)"
+    : currentLevel === "moderate"
+    ? "rgba(249,115,22,0.06)"
+    : "rgba(16,185,129,0.06)";
+  const triageBorder = isSevere ? "var(--danger)" : currentLevel === "moderate" ? "var(--warning)" : "var(--success)";
+  const triageTextColor = isSevere ? "var(--danger)" : currentLevel === "moderate" ? "var(--warning)" : "var(--success)";
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }} className="animate-fade-in">
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <button 
-            className="btn btn-secondary" 
-            onClick={() => navigate("/patients")} 
-            style={{ padding: "8px 12px", borderRadius: "8px" }}
-          >
-            <ArrowLeft size={16} />
-          </button>
-          <div>
-            <h1 style={{ fontSize: "2.2rem", margin: "0 0 4px 0", color: "var(--text-primary)" }}>
-              {patient.full_name} — Clinical Directory
-            </h1>
-            <p style={{ color: "var(--text-secondary)", fontSize: "1rem", margin: 0 }}>
-              Status: <span style={{ fontWeight: 600, color: patient.status === "active" ? "var(--success)" : "var(--danger)" }}>{patient.status}</span> • Clerk ID: {patient.clerkId || "N/A"}
-            </p>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }} className="animate-fade-in">
+
+      {/* ── Patient Header Bar ── */}
+      <div
+        className="glass-panel"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 18,
+          borderLeft: `4px solid ${triageBorder}`,
+        }}
+      >
+        {/* Top Row */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+          {/* Left: back + identity */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => navigate("/patients")}
+              style={{ padding: "8px 12px", flexShrink: 0 }}
+            >
+              <ArrowLeft size={16} />
+            </button>
+            <Avatar name={patient.full_name || ""} size={52} />
+            <div style={{ minWidth: 0 }}>
+              <h1 style={{ fontSize: "1.5rem", margin: "0 0 3px 0", color: "var(--text-primary)", letterSpacing: "-0.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {patient.full_name}
+              </h1>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
+                {patient.email || "No email"} · {patient.mobile_number || "No mobile"}
+              </p>
+            </div>
           </div>
+
+          {/* Right: triage badge + actions */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            <span
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "5px 12px", borderRadius: 20,
+                fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+                background: triageBg,
+                color: triageTextColor,
+                border: `1px solid ${triageBorder}`,
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor", display: "inline-block" }} />
+              {currentLevel.replace("_", " ")}
+            </span>
+            <button
+              className="btn btn-secondary"
+              disabled={isTriggeringTest}
+              onClick={() => {
+                setTriggerSuccessMsg(false);
+                setShowTriggerModal(true);
+              }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px", fontSize: "0.85rem", cursor: isTriggeringTest ? "not-allowed" : "pointer" }}
+            >
+              <RefreshCw size={14} className={isTriggeringTest ? "animate-spin" : ""} />
+              {isTriggeringTest ? "Triggering..." : "Trigger Screening"}
+            </button>
+            {isSevere && (
+              <button
+                className="btn btn-danger"
+                onClick={() => setShowUnblockModal(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px", fontSize: "0.85rem" }}
+              >
+                <Unlock size={14} /> Unblock Patient
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Stats Strip */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, background: "#f8fafc", padding: "12px 16px", borderRadius: 12, border: "1px solid var(--border-color)" }}>
+          {[
+            { label: "AI Risk Score", val: "Low (12/100)", color: "var(--accent-primary)" },
+            { label: "Assigned Counsellor", val: "Priyanka R.", color: "var(--text-primary)" },
+            { label: "Latest PHQ-9", val: testResults[0] ? `${testResults[0].phq9_total} / 27` : "—", color: "var(--warning)" },
+            { label: "Latest GAD-7", val: testResults[0] ? `${testResults[0].gad7_total} / 21` : "—", color: "var(--success)" },
+          ].map(({ label, val, color }) => (
+            <div key={label}>
+              <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", display: "block" }}>{label}</span>
+              <p style={{ margin: "3px 0 0 0", fontSize: "0.95rem", fontWeight: 800, color }}>{val}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Tab Switcher */}
-      <div style={{ display: "flex", gap: "12px", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px" }}>
-        <button
-          onClick={() => setActiveTab("screenings")}
-          style={{
-            padding: "10px 20px",
-            borderRadius: "10px",
-            border: "none",
-            background: activeTab === "screenings" ? "var(--accent-primary)" : "rgba(255, 255, 255, 0.08)",
-            color: activeTab === "screenings" ? "white" : "var(--text-secondary)",
-            fontWeight: 650,
-            cursor: "pointer",
-            transition: "all 0.2s"
-          }}
-        >
-          Clinical Assessments (PHQ-9 / GAD-7)
-        </button>
-        <button
-          onClick={() => setActiveTab("cbt")}
-          style={{
-            padding: "10px 20px",
-            borderRadius: "10px",
-            border: "none",
-            background: activeTab === "cbt" ? "var(--accent-primary)" : "rgba(255, 255, 255, 0.08)",
-            color: activeTab === "cbt" ? "white" : "var(--text-secondary)",
-            fontWeight: 650,
-            cursor: "pointer",
-            transition: "all 0.2s"
-          }}
-        >
-          🧠 AI CBT & Recovery Plans
-        </button>
+
+      {/* ── Tab Switcher ── */}
+      <div style={{ display: "flex", gap: 8, borderBottom: "2px solid var(--border-color)", paddingBottom: 0, overflowX: "auto" }}>
+        {([
+          { key: "screenings", label: "📋 Clinical Assessments" },
+          { key: "cbt",        label: "🧠 AI CBT & Recovery" },
+          { key: "somatic",   label: "🧘 Somatic & JPMR" },
+          { key: "gamification", label: "🏆 Gamification" },
+        ] as { key: string; label: string }[]).map(({ key, label }) => {
+          const active = (activeTab as string) === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key as any)}
+              style={{
+                padding: "10px 18px",
+                borderRadius: "10px 10px 0 0",
+                border: "1px solid transparent",
+                borderBottom: active ? "2px solid var(--accent-primary)" : "2px solid transparent",
+                background: active ? "rgba(37,99,235,0.07)" : "transparent",
+                color: active ? "var(--accent-primary)" : "var(--text-secondary)",
+                fontWeight: active ? 700 : 500,
+                fontSize: "0.88rem",
+                cursor: "pointer",
+                transition: "all 0.18s",
+                whiteSpace: "nowrap",
+                marginBottom: -2,
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
+
 
       {/* RENDER TAB 1: CLINICAL assessments */}
       {activeTab === "screenings" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
           <div className="grid-3" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }}>
             {/* Left Column - General Info */}
-            <div className="glass-panel hud-panel" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", textAlign: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: "24px" }}>
-                <div style={{ width: "72px", height: "72px", borderRadius: "18px", background: "rgba(37, 99, 235, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(37, 99, 235, 0.15)" }}>
-                  <User size={32} color="var(--accent-primary)" />
-                </div>
+            <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: 20 }}>
+                <Avatar name={patient.full_name || ""} size={68} />
                 <div>
-                  <h2 style={{ color: "var(--text-primary)", fontSize: "1.4rem", margin: "0 0 6px 0" }}>{patient.full_name}</h2>
-                  <span className={`badge ${patient.status === "active" ? "badge-green" : "badge-red"}`}>
-                    {patient.status}
+                  <h2 style={{ color: "var(--text-primary)", fontSize: "1.2rem", margin: "0 0 6px 0" }}>{patient.full_name}</h2>
+                  <span
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "3px 10px", borderRadius: 20,
+                      fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+                      background: patient.status === "active" ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)",
+                      color: patient.status === "active" ? "#10b981" : "#ef4444",
+                      border: `1px solid ${patient.status === "active" ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)"}`,
+                    }}
+                  >
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor", display: "inline-block" }} />
+                    {patient.status || "active"}
                   </span>
                 </div>
               </div>
@@ -176,7 +336,7 @@ export default function PatientDetail() {
             </div>
 
             {/* Right Column - Graphical Trends */}
-            <div className="glass-panel hud-panel" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 0 }}>
                 <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "8px", margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   <TrendingUp size={20} color="var(--accent-primary)" />
@@ -190,12 +350,12 @@ export default function PatientDetail() {
                     <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorPHQ9" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                         </linearGradient>
                         <linearGradient id="colorGAD7" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
@@ -219,8 +379,8 @@ export default function PatientDetail() {
           </div>
 
           {/* Tabular Test Results */}
-          <div className="glass-panel hud-panel" style={{ padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--glass-border)", display: "flex", alignItems: "center", gap: "10px", justifyContent: 'space-between' }}>
+          <div className="glass-panel" style={{ padding: 0, overflow: "hidden" }}>
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: "10px", justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Heart size={20} color="var(--accent-primary)" />
                 <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Historical Screening Tests</h3>
@@ -234,20 +394,18 @@ export default function PatientDetail() {
                     <th>PHQ-9 (Depression)</th>
                     <th>GAD-7 (Anxiety)</th>
                     <th>PQ-16 (Psychosis)</th>
-                    <th>WSAS (Functioning)</th>
-                    <th>ReQoL-10 (Quality of Life)</th>
                     <th>Suicide Flag (Item 9)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {testResults.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>
+                      <td colSpan={5} style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>
                         No completed screenings found.
                       </td>
                     </tr>
                   ) : (
-                    testResults.map((test) => (
+                    testResults.map((test: any) => (
                       <tr key={test._id}>
                         <td>
                           <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
@@ -265,8 +423,6 @@ export default function PatientDetail() {
                           </span>
                         </td>
                         <td>{test.pq16_total} / 16</td>
-                        <td>{test.wsas_total} / 40</td>
-                        <td>{test.reqol10_total} / 40</td>
                         <td>
                           {test.phq9_item9_flag ? (
                             <span className="badge badge-red" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
@@ -349,12 +505,12 @@ export default function PatientDetail() {
                         <AreaChart data={cbtAnalytics.recoveryTrend} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                           <defs>
                             <linearGradient id="colorBefore" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.2}/>
-                              <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                              <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.2} />
+                              <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
                             </linearGradient>
                             <linearGradient id="colorAfter" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                              <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
@@ -408,9 +564,6 @@ export default function PatientDetail() {
                 </div>
               </div>
 
-                </div>
-              </div>
-
               {/* BEHAVIOURAL ACTIVATION & MICRO-GOALS SUMMARY */}
               <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -448,7 +601,7 @@ export default function PatientDetail() {
                       14-Day Goal Completion Activity
                     </h4>
                     <div style={{ height: "230px", width: "100%" }}>
-                      {cbtAnalytics.behaviouralActivationTrends.some(t => t.total > 0) ? (
+                      {cbtAnalytics.behaviouralActivationTrends.some((t: any) => t.total > 0) ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={cbtAnalytics.behaviouralActivationTrends} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
@@ -476,7 +629,7 @@ export default function PatientDetail() {
                         {cbtAnalytics.mostEffectiveGoalCategories.length === 0 ? (
                           <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem", fontStyle: "italic" }}>No categories tracked yet.</span>
                         ) : (
-                          cbtAnalytics.mostEffectiveGoalCategories.slice(0, 4).map((cat) => (
+                          cbtAnalytics.mostEffectiveGoalCategories.slice(0, 4).map((cat: any) => (
                             <span key={cat.category} className="badge badge-green" style={{ fontSize: "0.8rem", padding: "4px 8px" }}>
                               {cat.category}: {cat.count}
                             </span>
@@ -491,7 +644,7 @@ export default function PatientDetail() {
                         {cbtAnalytics.frequentlySkippedGoals.length === 0 ? (
                           <li style={{ fontStyle: "italic", listStyleType: "none", marginLeft: "-16px" }}>No goals skipped yet.</li>
                         ) : (
-                          cbtAnalytics.frequentlySkippedGoals.slice(0, 3).map((g, idx) => (
+                          cbtAnalytics.frequentlySkippedGoals.slice(0, 3).map((g: any, idx: number) => (
                             <li key={idx} style={{ color: "var(--text-primary)" }}>
                               "{g.title}" <strong style={{ color: "var(--danger)" }}>({g.count} skips)</strong>
                             </li>
@@ -514,7 +667,7 @@ export default function PatientDetail() {
                         No cbt or goal milestones logged yet.
                       </span>
                     ) : (
-                      cbtAnalytics.recoveryTimeline.map((item, idx) => (
+                      cbtAnalytics.recoveryTimeline.map((item: any, idx: number) => (
                         <div key={idx} style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "8px 12px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
                           <span style={{ fontSize: "1.1rem", padding: "4px" }}>
                             {item.type === "session" ? "🧠" : "🎯"}
@@ -542,7 +695,7 @@ export default function PatientDetail() {
                     <AlertTriangle size={18} /> High-Risk Safety Mode Activations ({cbtAnalytics.highRiskAlerts.length})
                   </h3>
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {cbtAnalytics.highRiskAlerts.map((alert, idx) => (
+                    {cbtAnalytics.highRiskAlerts.map((alert: any, idx: number) => (
                       <div key={idx} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: "rgba(255, 255, 255, 0.8)", border: "1px solid rgba(239, 68, 68, 0.15)", borderRadius: "8px" }}>
                         <div>
                           <span style={{ fontWeight: 650, color: "var(--text-primary)" }}>Session Triggered: {alert.situation}</span>
@@ -562,8 +715,8 @@ export default function PatientDetail() {
               )}
 
               {/* HISTORICAL CBT SESSIONS LIST */}
-              <div className="glass-panel hud-panel" style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--glass-border)", display: "flex", alignItems: "center", gap: "10px" }}>
+              <div className="glass-panel" style={{ padding: 0, overflow: "hidden" }}>
+                <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: "10px" }}>
                   <Brain size={20} color="var(--accent-primary)" />
                   <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Historical AI CBT Sessions</h3>
                 </div>
@@ -589,7 +742,7 @@ export default function PatientDetail() {
                           </td>
                         </tr>
                       ) : (
-                        cbtAnalytics.sessionsHistory.map((s) => (
+                        cbtAnalytics.sessionsHistory.map((s: any) => (
                           <tr key={s._id}>
                             <td>{new Date(s.timestamp).toLocaleDateString()}</td>
                             <td style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -611,8 +764,8 @@ export default function PatientDetail() {
                               </span>
                             </td>
                             <td style={{ textAlign: "right" }}>
-                              <button 
-                                className="btn btn-secondary" 
+                              <button
+                                className="btn btn-secondary"
                                 style={{ padding: "4px 10px", fontSize: "0.85rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
                                 onClick={() => setSelectedSession(s)}
                               >
@@ -631,25 +784,172 @@ export default function PatientDetail() {
         </div>
       )}
 
+      {/* RENDER TAB 3: SOMATIC & JPMR TELEMETRY */}
+      {(activeTab as string) === "somatic" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+
+          <div className="grid-2">
+            {/* JPMR Relaxation Logs */}
+            <div className="glass-panel hud-panel">
+              <h3 style={{ fontSize: "1.2rem", marginBottom: "16px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
+                <Heart size={20} color="var(--accent-primary)" /> JPMR Relaxation Sessions
+              </h3>
+              <div style={{ overflowX: "auto" }}>
+                <table className="hud-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ textAlign: "left", fontSize: "0.8rem", color: "#64748b", textTransform: "uppercase" }}>
+                      <th style={{ padding: "12px 16px" }}>Date</th>
+                      <th style={{ padding: "12px 16px" }}>Duration</th>
+                      <th style={{ padding: "12px 16px" }}>Pre Intensity</th>
+                      <th style={{ padding: "12px 16px" }}>Post Intensity</th>
+                      <th style={{ padding: "12px 16px" }}>Delta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cbtAnalytics?.jpmrLogs && cbtAnalytics.jpmrLogs.length > 0 ? (
+                      cbtAnalytics.jpmrLogs.map((j: any) => {
+                        const delta = j.preIntensity - j.postIntensity;
+                        return (
+                          <tr key={j._id} style={{ borderBottom: "1px solid var(--border-color)" }}>
+                            <td style={{ padding: "12px 16px", fontSize: "0.85rem" }}>{new Date(j.createdAt).toLocaleDateString()}</td>
+                            <td style={{ padding: "12px 16px", fontSize: "0.85rem" }}>{j.durationSeconds ? `${Math.round(j.durationSeconds / 60)} min` : "N/A"}</td>
+                            <td style={{ padding: "12px 16px", fontSize: "0.85rem", color: "var(--danger)", fontWeight: 600 }}>{j.preIntensity}/10</td>
+                            <td style={{ padding: "12px 16px", fontSize: "0.85rem", color: "var(--success)", fontWeight: 600 }}>{j.postIntensity}/10</td>
+                            <td style={{ padding: "12px 16px", fontSize: "0.85rem", fontWeight: 700, color: delta > 0 ? "var(--success)" : "var(--text-secondary)" }}>
+                              {delta > 0 ? `-${delta} pts` : "0"}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={5} style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)" }}>No JPMR logs recorded.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Emotion Body Maps */}
+            <div className="glass-panel hud-panel">
+              <h3 style={{ fontSize: "1.2rem", marginBottom: "16px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
+                <Brain size={20} color="var(--accent-primary)" /> Emotion Body Maps
+              </h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "320px", overflowY: "auto" }}>
+                {cbtAnalytics?.emotionMaps && cbtAnalytics.emotionMaps.length > 0 ? (
+                  cbtAnalytics.emotionMaps.map((em: any) => (
+                    <div key={em._id} style={{ padding: "14px", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)" }}>{em.emotionLabel}</span>
+                        <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{new Date(em.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: "0.85rem", color: "#475569" }}>
+                        Regions: <strong>{em.selectedRegions?.join(", ") || "None"}</strong> • Avg Intensity: <strong>{em.averageIntensity}/10</strong>
+                      </p>
+                      {em.suggestedAction && (
+                        <span style={{ fontSize: "0.8rem", color: "var(--accent-primary)", fontStyle: "italic" }}>Suggested: {em.suggestedAction}</span>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p style={{ color: "var(--text-secondary)", textAlign: "center", margin: "20px 0" }}>No Emotion Body Maps logged.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RENDER TAB 4: GAMIFICATION & REFRAMES */}
+      {(activeTab as string) === "gamification" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+          {/* Gamification Summary Stats Header */}
+          <div className="grid-3">
+            <div className="glass-panel hud-panel" style={{ borderTop: "2px solid var(--accent-primary)" }}>
+              <span style={{ fontSize: "0.8rem", textTransform: "uppercase", color: "var(--text-secondary)", fontWeight: 700 }}>Level & XP</span>
+              <p style={{ fontSize: "2.2rem", fontWeight: 800, margin: "8px 0 0 0" }}>Lvl {cbtAnalytics?.level || 1} <span style={{ fontSize: "1.1rem", fontWeight: 500, color: "var(--text-secondary)" }}>({cbtAnalytics?.xp || 0} XP)</span></p>
+            </div>
+            <div className="glass-panel hud-panel" style={{ borderTop: "2px solid var(--success)" }}>
+              <span style={{ fontSize: "0.8rem", textTransform: "uppercase", color: "var(--text-secondary)", fontWeight: 700 }}>Current Streak</span>
+              <p style={{ fontSize: "2.2rem", fontWeight: 800, margin: "8px 0 0 0", color: "var(--success)" }}>{cbtAnalytics?.streak?.currentStreak || 0} Days</p>
+            </div>
+            <div className="glass-panel hud-panel" style={{ borderTop: "2px solid var(--warning)" }}>
+              <span style={{ fontSize: "0.8rem", textTransform: "uppercase", color: "var(--text-secondary)", fontWeight: 700 }}>Earned Badges</span>
+              <p style={{ fontSize: "2.2rem", fontWeight: 800, margin: "8px 0 0 0", color: "var(--warning)" }}>{cbtAnalytics?.badges?.length || 0} Badges</p>
+            </div>
+          </div>
+
+          {/* Guided Cognitive Reframes History Table */}
+          <div className="glass-panel hud-panel">
+            <h3 style={{ fontSize: "1.2rem", marginBottom: "16px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
+              <Smile size={20} color="var(--accent-primary)" /> Guided Cognitive Reframes Log
+            </h3>
+            <div style={{ overflowX: "auto" }}>
+              <table className="hud-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ textAlign: "left", fontSize: "0.8rem", color: "#64748b", textTransform: "uppercase" }}>
+                    <th style={{ padding: "12px 16px" }}>Date</th>
+                    <th style={{ padding: "12px 16px" }}>Situation & Original Thought</th>
+                    <th style={{ padding: "12px 16px" }}>Thinking Trap</th>
+                    <th style={{ padding: "12px 16px" }}>New Reframed Thought</th>
+                    <th style={{ padding: "12px 16px" }}>Improvement</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cbtAnalytics?.reframeLogs && cbtAnalytics.reframeLogs.length > 0 ? (
+                    cbtAnalytics.reframeLogs.map((rf: any) => (
+                      <tr key={rf._id} style={{ borderBottom: "1px solid var(--border-color)" }}>
+                        <td style={{ padding: "12px 16px", fontSize: "0.85rem", whiteSpace: "nowrap" }}>{new Date(rf.createdAt).toLocaleDateString()}</td>
+                        <td style={{ padding: "12px 16px", fontSize: "0.88rem" }}>
+                          <span style={{ fontWeight: 600, display: "block" }}>{rf.situation_text}</span>
+                          <span style={{ color: "var(--text-secondary)", fontStyle: "italic" }}>"{rf.thought_original}"</span>
+                        </td>
+                        <td style={{ padding: "12px 16px" }}>
+                          <span className="badge badge-orange" style={{ fontSize: "0.75rem" }}>{rf.thinking_trap_choice}</span>
+                        </td>
+                        <td style={{ padding: "12px 16px", fontSize: "0.88rem", color: "var(--accent-primary)", fontWeight: 600 }}>"{rf.reframe_text}"</td>
+                        <td style={{ padding: "12px 16px", fontSize: "0.88rem", fontWeight: 700, color: "var(--success)" }}>
+                          +{rf.improvement_percentage}%
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} style={{ padding: "20px", textAlign: "center", color: "var(--text-secondary)" }}>No guided reframe logs recorded.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       {/* DIALOGUE TRANSCRIPT VIEWER MODAL */}
       {selectedSession && createPortal(
-        <div className="modal-overlay" style={overlayStyle}>
-          <div className="glass-panel hud-panel" style={{ ...modalStyle, maxWidth: "700px" }}>
-            {/* Modal Close Button */}
-            <button 
-              onClick={() => setSelectedSession(null)} 
-              style={{ position: 'absolute', top: '16px', right: '16px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
-            >
-              ✕
-            </button>
-
-            <h2 style={{ fontSize: "1.4rem", margin: "0 0 4px 0", color: "var(--text-primary)" }}>CBT Session Dialogue Transcript</h2>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: "0 0 16px 0" }}>
-              Date: {new Date(selectedSession.timestamp).toLocaleString()} • Status: <span style={{ fontWeight: 600 }}>{selectedSession.sessionStatus}</span>
-            </p>
+        <div style={overlayStyle} onClick={() => setSelectedSession(null)}>
+          <div className="glass-panel animate-fade-in" style={{ ...modalStyle, maxWidth: "750px", maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+              <div>
+                <h2 style={{ fontSize: "1.4rem", margin: "0 0 4px 0", color: "var(--text-primary)" }}>CBT Session Dialogue Transcript</h2>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
+                  Date: {new Date(selectedSession.timestamp).toLocaleString()} • Status: <span style={{ fontWeight: 600 }}>{selectedSession.sessionStatus}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSession(null)}
+                className="btn btn-secondary"
+                style={{ padding: "6px 14px", borderRadius: "8px", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                ✕ Close
+              </button>
+            </div>
 
             {/* Session Clinical Summary Section */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", padding: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-color)", borderRadius: "12px", marginBottom: "16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", padding: "16px", background: "rgba(0,0,0,0.02)", border: "1px solid var(--border-color)", borderRadius: "12px", marginBottom: "16px" }}>
               <div>
                 <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", textTransform: "uppercase", fontWeight: 700 }}>Situation Analyzed</span>
                 <span style={{ color: "var(--text-primary)", fontSize: "0.95rem" }}>{selectedSession.situation || "Unknown"}</span>
@@ -698,48 +998,242 @@ export default function PatientDetail() {
             </div>
 
             {/* Chat Transcript Panel */}
-            <h3 style={{ fontSize: "1.1rem", margin: "16px 0 8px 0", color: "var(--text-primary)" }}>Counselor Dialogue</h3>
-            <div style={{ maxHeight: "300px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", padding: "14px", border: "1px solid var(--border-color)", borderRadius: "12px", background: "#f8fafc" }}>
-              {selectedSession.conversation?.map((msg: any, idx: number) => {
-                const isUser = msg.role === "user";
-                return (
-                  <div key={idx} style={{
-                    alignSelf: isUser ? "flex-end" : "flex-start",
-                    maxWidth: "80%",
-                    background: isUser ? "var(--accent-primary)" : "#ffffff",
-                    border: isUser ? "none" : "1px solid #e2e8f0",
-                    color: isUser ? "white" : "var(--text-primary)",
-                    borderRadius: "14px",
-                    padding: "10px 14px",
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
-                  }}>
-                    <strong style={{ display: "block", fontSize: "0.75rem", color: isUser ? "rgba(255,255,255,0.7)" : "var(--text-secondary)", marginBottom: "2px" }}>
-                      {isUser ? "Student" : "Compassionate AI Counselor"}
-                    </strong>
-                    <span style={{ fontSize: "0.92rem", lineHeight: 1.4 }}>{msg.content}</span>
-                  </div>
-                );
-              })}
+            <h3 style={{ fontSize: "1.1rem", margin: "16px 0 8px 0", color: "var(--text-primary)" }}>Counselor Dialogue Log</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "16px", border: "1px solid var(--border-color)", borderRadius: "12px", background: "#f8fafc" }}>
+              {selectedSession.conversation && selectedSession.conversation.length > 0 ? (
+                selectedSession.conversation.map((msg: any, idx: number) => {
+                  const isUser = msg.role === "user";
+                  return (
+                    <div key={idx} style={{
+                      alignSelf: isUser ? "flex-end" : "flex-start",
+                      maxWidth: "85%",
+                      background: isUser ? "var(--accent-primary)" : "#ffffff",
+                      border: isUser ? "none" : "1px solid #cbd5e1",
+                      color: isUser ? "white" : "#1e293b",
+                      borderRadius: "14px",
+                      padding: "10px 16px",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
+                    }}>
+                      <strong style={{ display: "block", fontSize: "0.75rem", color: isUser ? "rgba(255,255,255,0.85)" : "#64748b", marginBottom: "3px" }}>
+                        {isUser ? "Student" : "Compassionate AI Counselor"}
+                      </strong>
+                      <span style={{ fontSize: "0.95rem", lineHeight: 1.45 }}>{msg.content}</span>
+                    </div>
+                  );
+                })
+              ) : (
+                <p style={{ color: "var(--text-secondary)", textAlign: "center", margin: "auto" }}>No transcript messages recorded for this session.</p>
+              )}
             </div>
-            
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
-              <button className="btn btn-secondary" onClick={() => setSelectedSession(null)}>Close Transcript</button>
+
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--border-color)" }}>
+              <button className="btn btn-secondary" onClick={() => setSelectedSession(null)} style={{ padding: "8px 20px", fontWeight: 650 }}>
+                Close Transcript
+              </button>
             </div>
           </div>
         </div>,
         document.body
       )}
+
+      {/* UNBLOCK PATIENT ACTION MODAL */}
+      {showUnblockModal && createPortal(
+        <div style={overlayStyle} onClick={() => !isSubmittingUnblock && setShowUnblockModal(false)}>
+          <div className="glass-panel animate-fade-in" style={{ ...modalStyle, maxWidth: "550px" }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ padding: "8px", borderRadius: "10px", background: "rgba(16, 185, 129, 0.1)", color: "#10b981" }}>
+                  <Unlock size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: "1.3rem", margin: 0, color: "var(--text-primary)" }}>Unblock Patient Triage</h3>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Patient: <strong>{patient.full_name}</strong></span>
+                </div>
+              </div>
+              <button
+                className="btn btn-secondary"
+                disabled={isSubmittingUnblock}
+                onClick={() => setShowUnblockModal(false)}
+                style={{ padding: "4px 10px", fontSize: "0.85rem" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: "0.95rem", color: "var(--text-secondary)", margin: "8px 0 16px 0", lineHeight: 1.5 }}>
+              Choose an unblock action to restore standard app access after the patient has met with their counsellor:
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {/* Option 1: Switch to Moderate */}
+              <button
+                disabled={isSubmittingUnblock}
+                onClick={() => handleUnblockAction("switch_moderate")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "14px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid #f97316",
+                  background: "rgba(249, 115, 22, 0.05)",
+                  cursor: isSubmittingUnblock ? "not-allowed" : "pointer",
+                  textAlign: "left",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: "1.0rem", color: "#c2410c", display: "block" }}>1) Switch to Moderate</strong>
+                  <span style={{ fontSize: "0.85rem", color: "#9a3412" }}>Set triage status to Moderate level and enable guided app features.</span>
+                </div>
+                <ArrowRight size={18} color="#f97316" />
+              </button>
+
+              {/* Option 2: Switch to Low */}
+              <button
+                disabled={isSubmittingUnblock}
+                onClick={() => handleUnblockAction("switch_low")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "14px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid #10b981",
+                  background: "rgba(16, 185, 129, 0.05)",
+                  cursor: isSubmittingUnblock ? "not-allowed" : "pointer",
+                  textAlign: "left",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: "1.0rem", color: "#047857", display: "block" }}>2) Switch to Low (Mild)</strong>
+                  <span style={{ fontSize: "0.85rem", color: "#065f46" }}>Set triage status to Low/Mild risk and grant full app access.</span>
+                </div>
+                <ArrowRight size={18} color="#10b981" />
+              </button>
+
+              {/* Option 3: Forced to another screening test */}
+              <button
+                disabled={isSubmittingUnblock}
+                onClick={() => handleUnblockAction("force_retest")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "14px 16px",
+                  borderRadius: "12px",
+                  border: "1px solid #6366f1",
+                  background: "rgba(99, 102, 241, 0.05)",
+                  cursor: isSubmittingUnblock ? "not-allowed" : "pointer",
+                  textAlign: "left",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: "1.0rem", color: "#4338ca", display: "block" }}>3) Forced Retest (New Screening)</strong>
+                  <span style={{ fontSize: "0.85rem", color: "#3730a3" }}>Require the patient to take a mandatory new clinical assessment test.</span>
+                </div>
+                <RefreshCw size={18} color="#6366f1" />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--border-color)" }}>
+              <button
+                className="btn btn-secondary"
+                disabled={isSubmittingUnblock}
+                onClick={() => setShowUnblockModal(false)}
+                style={{ padding: "8px 18px", fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Custom Trigger Screening Modal ── */}
+      {showTriggerModal && createPortal(
+        <div style={overlayStyle} onClick={() => !isTriggeringTest && setShowTriggerModal(false)}>
+          <div style={{ ...modalStyle, maxWidth: 450 }} onClick={(e) => e.stopPropagation()}>
+            {triggerSuccessMsg ? (
+              <div style={{ textAlign: "center", padding: "12px 0" }}>
+                <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#ecfdf5", border: "1px solid #a7f3d0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px auto", color: "#10b981" }}>
+                  <CheckCircle size={32} />
+                </div>
+                <h3 style={{ fontSize: "1.25rem", fontWeight: 700, margin: "0 0 8px 0", color: "var(--text-primary)" }}>
+                  Screening Triggered!
+                </h3>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: 1.5, margin: "0 0 24px 0" }}>
+                  A mandatory new screening assessment has been forced for <strong>{patient.full_name}</strong>. Their mobile app will immediately prompt them to complete the test.
+                </p>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => setShowTriggerModal(false)}
+                  style={{ width: "100%", padding: "10px 0", fontWeight: 600, borderRadius: 10 }}
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(99, 102, 241, 0.1)", border: "1px solid rgba(99, 102, 241, 0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#6366f1" }}>
+                    <RefreshCw size={22} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: "1.15rem", fontWeight: 700, margin: 0, color: "var(--text-primary)" }}>
+                      Force New Screening Test?
+                    </h3>
+                    <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                      Clinical Action for {patient.full_name}
+                    </span>
+                  </div>
+                </div>
+
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: 1.5, marginBottom: 24 }}>
+                  Are you sure you want to force a new clinical screening test for <strong>{patient.full_name}</strong>? This will lock their app tools until they complete the re-assessment.
+                </p>
+
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <button
+                    className="btn btn-secondary"
+                    disabled={isTriggeringTest}
+                    onClick={() => setShowTriggerModal(false)}
+                    style={{ padding: "9px 18px", borderRadius: 10, fontWeight: 600 }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    disabled={isTriggeringTest}
+                    onClick={confirmAndTriggerScreening}
+                    style={{ padding: "9px 20px", borderRadius: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 8 }}
+                  >
+                    {isTriggeringTest ? <RefreshCw size={16} className="animate-spin" /> : null}
+                    {isTriggeringTest ? "Triggering..." : "Confirm & Trigger"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+
     </div>
   );
 }
 
 const overlayStyle: React.CSSProperties = {
   position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-  background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(12px)",
-  zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px"
+  background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(14px)",
+  zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
 };
 
 const modalStyle: React.CSSProperties = {
-  position: "relative", width: "100%", padding: "32px", borderRadius: "20px",
-  background: "var(--card-bg)", display: "flex", flexDirection: "column", gap: "16px"
+  position: "relative", width: "100%", padding: "32px", borderRadius: 20,
+  background: "var(--card-bg)", display: "flex", flexDirection: "column", gap: 16,
 };

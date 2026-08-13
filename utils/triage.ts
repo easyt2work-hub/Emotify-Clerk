@@ -4,8 +4,8 @@ export interface TriageInput {
   phq9_total: number;
   gad7_total: number;
   pq16_total: number;
-  wsas_total: number;
-  reqol10_total: number;
+  wsas_total?: number;
+  reqol10_total?: number;
   phq9_item9_score: number;
 }
 
@@ -22,12 +22,12 @@ export interface TriageResult {
  *
  * IF phq9_item9 > 0        → suicide_flag
  * ELSE IF pq16 >= 6        → psychosis_flag
- * ELSE IF phq >= 15 OR gad >= 15 OR wsas > 20 OR reqol < 15 → severe
- * ELSE IF phq 10–14 OR gad 10–14 OR wsas 11–20               → moderate
- * ELSE                                                         → mild
+ * ELSE IF phq >= 15 OR gad >= 15 → severe
+ * ELSE IF phq 10–14 OR gad 10–14 → moderate
+ * ELSE                          → mild
  */
 export function runTriage(input: TriageInput): TriageResult {
-  const { phq9_total, gad7_total, pq16_total, wsas_total, reqol10_total, phq9_item9_score } = input;
+  const { phq9_total, gad7_total, pq16_total, phq9_item9_score } = input;
 
   // Priority 1: Suicide risk
   if (phq9_item9_score > 0) {
@@ -52,7 +52,7 @@ export function runTriage(input: TriageInput): TriageResult {
   }
 
   // Priority 3: Severe
-  if (phq9_total >= 15 || gad7_total >= 15 || wsas_total > 20 || reqol10_total < 15) {
+  if (phq9_total >= 15 || gad7_total >= 15) {
     return {
       level: 'severe',
       suicideFlag: false,
@@ -65,9 +65,7 @@ export function runTriage(input: TriageInput): TriageResult {
   // Priority 4: Moderate
   if (
     (phq9_total >= 10 && phq9_total <= 14) ||
-    (gad7_total >= 10 && gad7_total <= 14) ||
-    (wsas_total >= 11 && wsas_total <= 20) ||
-    (reqol10_total >= 15 && reqol10_total <= 25)
+    (gad7_total >= 10 && gad7_total <= 14)
   ) {
     return {
       level: 'moderate',

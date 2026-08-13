@@ -6,6 +6,14 @@ import PatientsList from './pages/PatientsList';
 import PatientDetail from './pages/PatientDetail';
 import AlertsCenter from './pages/AlertsCenter';
 import Sessions from './pages/Sessions';
+import ScreeningCentre from './pages/ScreeningCentre';
+import AiMonitoring from './pages/AiMonitoring';
+import Notifications from './pages/Notifications';
+import Analytics from './pages/Analytics';
+import SystemSettingsPage from './pages/Settings';
+import TrashBin from './pages/TrashBin';
+
+
 import Login from './pages/Login';
 import React from 'react';
 
@@ -52,6 +60,10 @@ function App() {
                   <Route path="patients/:id" element={<PatientDetail />} />
                   <Route path="alerts" element={<AlertsCenter />} />
                   <Route path="sessions" element={<Sessions />} />
+
+                  <Route path="screenings" element={<ScreeningCentre />} />
+                  <Route path="ai-monitoring" element={<AiMonitoring />} />
+                  <Route path="notifications" element={<Notifications />} />
                 </Route>
               </Routes>
             </ProtectedRoute>
@@ -62,4 +74,6 @@ function App() {
   );
 }
 
+
 export default App;
+

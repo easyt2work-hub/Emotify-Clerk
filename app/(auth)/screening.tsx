@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, StyleSheet, ActivityIndicator, Text, ScrollView, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useAppAuth } from "@/utils/auth";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Colors } from "@/constants/Colors";
 import { Theme } from "@/constants/Theme";
@@ -17,22 +17,10 @@ import {
   GAD7_QUESTIONS,
   GAD7_OPTIONS,
   GAD7_INSTRUCTION,
-  PQ16_QUESTIONS,
-  PQ16_OPTIONS,
-  PQ16_INSTRUCTION,
-  WSAS_QUESTIONS,
-  WSAS_OPTIONS,
-  WSAS_INSTRUCTION,
-  REQOL10_QUESTIONS,
-  REQOL10_OPTIONS,
-  REQOL10_INSTRUCTION,
 } from "@/constants/Screening";
 import {
   scorePHQ9,
   scoreGAD7,
-  scorePQ16,
-  scoreWSAS,
-  scoreReQoL10,
 } from "@/utils/scoring";
 import { runTriage, TriageInput } from "@/utils/triage";
 
@@ -55,33 +43,6 @@ const INSTRUMENTS = [
     instruction: GAD7_INSTRUCTION,
     scoring: scoreGAD7,
   },
-  {
-    id: "pq16",
-    title: "PQ-16 (Experiences)",
-    desc: "Screen for sensory perceptions and unusual experiences.",
-    questions: PQ16_QUESTIONS,
-    options: PQ16_OPTIONS,
-    instruction: PQ16_INSTRUCTION,
-    scoring: scorePQ16,
-  },
-  {
-    id: "wsas",
-    title: "WSAS (Functioning)",
-    desc: "Measure how wellbeing affects daily tasks and work.",
-    questions: WSAS_QUESTIONS,
-    options: WSAS_OPTIONS,
-    instruction: WSAS_INSTRUCTION,
-    scoring: scoreWSAS,
-  },
-  {
-    id: "reqol10",
-    title: "ReQoL-10 (Quality of Life)",
-    desc: "Examine general mental wellbeing and life quality.",
-    questions: REQOL10_QUESTIONS,
-    options: REQOL10_OPTIONS,
-    instruction: REQOL10_INSTRUCTION,
-    scoring: scoreReQoL10,
-  },
 ];
 
 type ScreeningState = Record<string, (number | null)[]>;
@@ -95,11 +56,14 @@ export default function ScreeningScreen() {
   const [answers, setAnswers] = useState<ScreeningState>({
     phq9: new Array(PHQ9_QUESTIONS.length).fill(null),
     gad7: new Array(GAD7_QUESTIONS.length).fill(null),
-    pq16: new Array(PQ16_QUESTIONS.length).fill(null),
-    wsas: new Array(WSAS_QUESTIONS.length).fill(null),
-    reqol10: new Array(REQOL10_QUESTIONS.length).fill(null),
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const latestTriage = useQuery(api.triage.getLatest, user?.id ? {
+    userId: user.id,
+  } : "skip");
+
+  const isForceRetest = latestTriage?.level === "force_retest";
 
   // Load persisted progress on mount/user change
   useEffect(() => {
@@ -116,9 +80,6 @@ export default function ScreeningScreen() {
           setAnswers({
             phq9: new Array(PHQ9_QUESTIONS.length).fill(null),
             gad7: new Array(GAD7_QUESTIONS.length).fill(null),
-            pq16: new Array(PQ16_QUESTIONS.length).fill(null),
-            wsas: new Array(WSAS_QUESTIONS.length).fill(null),
-            reqol10: new Array(REQOL10_QUESTIONS.length).fill(null),
           });
         }
       } catch (e) {
@@ -150,16 +111,11 @@ export default function ScreeningScreen() {
     try {
       const phq9 = scorePHQ9(answers.phq9 as number[]);
       const gad7 = scoreGAD7(answers.gad7 as number[]);
-      const pq16 = scorePQ16(answers.pq16 as number[]);
-      const wsas = scoreWSAS(answers.wsas as number[]);
-      const reqol10 = scoreReQoL10(answers.reqol10 as number[]);
 
       const triageInput: TriageInput = {
         phq9_total: phq9.total,
         gad7_total: gad7.total,
-        pq16_total: pq16.total,
-        wsas_total: wsas.total,
-        reqol10_total: reqol10.total,
+        pq16_total: 0,
         phq9_item9_score: phq9.item9Score,
       };
 
@@ -170,9 +126,7 @@ export default function ScreeningScreen() {
         userId: user.id,
         phq9_total: phq9.total,
         gad7_total: gad7.total,
-        pq16_total: pq16.total,
-        wsas_total: wsas.total,
-        reqol10_total: reqol10.total,
+        pq16_total: 0,
         phq9_item9_flag: phq9.item9Flag,
         phq9_item9_score: phq9.item9Score,
       });
@@ -182,9 +136,7 @@ export default function ScreeningScreen() {
         userId: user.id,
         phq9_total: phq9.total,
         gad7_total: gad7.total,
-        pq16_total: pq16.total,
-        wsas_total: wsas.total,
-        reqol10_total: reqol10.total,
+        pq16_total: 0,
         phq9_item9_score: phq9.item9Score,
       });
 
@@ -261,6 +213,8 @@ export default function ScreeningScreen() {
     );
   }
 
+
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -269,10 +223,21 @@ export default function ScreeningScreen() {
       />
       
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Clinical Screening</Text>
-        <Text style={styles.headerSubtitle}>
-          Complete all 5 assessments below to unlock your clinical dashboard and personalized insights.
-        </Text>
+        {isForceRetest ? (
+          <View style={styles.forcedBanner}>
+            <Ionicons name="alert-circle" size={24} color="#DC2626" />
+            <Text style={styles.forcedBannerText}>
+              Your counselor or doctor has requested a required re-screening test. Please complete the assessments below.
+            </Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.headerTitle}>Clinical Screening</Text>
+            <Text style={styles.headerSubtitle}>
+              Complete all assessments below to update your clinical dashboard and personalized insights.
+            </Text>
+          </>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -360,18 +325,18 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Theme.spacing.xl,
     paddingTop: 60,
-    paddingBottom: Theme.spacing.lg,
+    paddingBottom: Theme.spacing.md,
   },
   headerTitle: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 28,
-    color: Colors.text,
-    marginBottom: 8,
+    fontSize: 26,
+    color: '#0F172A',
+    marginBottom: 6,
   },
   headerSubtitle: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: '#64748B',
     lineHeight: 20,
   },
   scrollContent: {
@@ -383,21 +348,29 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: Theme.borderRadius.xl,
-    padding: Theme.spacing.xl,
-    ...Theme.shadows.tertiary,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
   },
   cardFinished: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#10B981',
   },
   cardInProgress: {
-    backgroundColor: Colors.primary + '05',
+    backgroundColor: '#FFFFFF',
+    borderColor: Colors.primary,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: Theme.spacing.lg,
+    marginBottom: 16,
   },
   cardInfo: {
     flex: 1,
@@ -406,13 +379,13 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 18,
-    color: Colors.text,
-    marginBottom: 6,
+    color: '#0F172A',
+    marginBottom: 4,
   },
   cardDesc: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: '#64748B',
     lineHeight: 18,
   },
   statusIcon: {
@@ -431,25 +404,25 @@ const styles = StyleSheet.create({
   progressLabel: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   progressPercent: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 12,
+    fontSize: 13,
     color: Colors.primary,
   },
   progressBarBg: {
-    height: 6,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 3,
+    height: 8,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 4,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
     backgroundColor: Colors.primary,
-    borderRadius: 3,
+    borderRadius: 4,
   },
   footer: {
     position: 'absolute',
@@ -458,9 +431,14 @@ const styles = StyleSheet.create({
     right: 0,
     padding: Theme.spacing.xl,
     paddingBottom: 40,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
+    borderTopColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 8,
   },
   submitButton: {
     height: 56,
@@ -470,15 +448,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    ...Theme.shadows.tertiary,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
   },
   submitButtonDisabled: {
-    backgroundColor: '#94A3B8',
-    opacity: 0.6,
+    backgroundColor: '#E2E8F0',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   submitButtonText: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 16,
     color: Colors.white,
+  },
+  forcedBanner: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: Theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: Theme.spacing.sm,
+  },
+  forcedBannerText: {
+    flex: 1,
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 14,
+    color: '#991B1B',
+    lineHeight: 20,
   },
 });

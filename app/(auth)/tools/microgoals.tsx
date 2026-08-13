@@ -110,7 +110,7 @@ export default function MicroGoalsScreen() {
     );
   }
 
-  const completedCount = dailyGoals.filter((g) => g.completed).length;
+  const completedCount = dailyGoals.filter((g: any) => g.completed).length;
   const totalGoalsCount = dailyGoals.length;
   const progressPercent = totalGoalsCount > 0 ? completedCount / totalGoalsCount : 0;
 
@@ -125,7 +125,7 @@ export default function MicroGoalsScreen() {
 
   // Handler functions
   const handleMoodSelect = async (mood: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
     setIsCheckinLoading(true);
     try {
       await submitCheckin({ mood });
@@ -148,7 +148,7 @@ export default function MicroGoalsScreen() {
 
   const handleScheduleSelect = async (minutes: number) => {
     if (!selectedGoal) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
     setIsMutationLoading(true);
     try {
       await scheduleGoalRelative({ id: selectedGoal._id, offsetMinutes: minutes });
@@ -169,7 +169,7 @@ export default function MicroGoalsScreen() {
 
   const handleSnoozeSelect = async (minutes: number) => {
     if (!selectedGoal) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
     setIsMutationLoading(true);
     try {
       await snoozeGoal({ id: selectedGoal._id, snoozeMinutes: minutes });
@@ -184,7 +184,7 @@ export default function MicroGoalsScreen() {
   };
 
   const handleTriggerComplete = (goal: any) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
     setSelectedGoal(goal);
     setIsFeelingVisible(true);
   };
@@ -203,7 +203,7 @@ export default function MicroGoalsScreen() {
           perfectDay: !!res.perfectDayBonus,
           newLevel: res.newLevel || currentLevel
         });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
         setIsCelebrationVisible(true);
       }
     } catch (e: any) {
@@ -215,7 +215,7 @@ export default function MicroGoalsScreen() {
   };
 
   const handleSkip = async (goal: any) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
     setIsMutationLoading(true);
     try {
       await skipGoal({ id: goal._id });
@@ -224,6 +224,129 @@ export default function MicroGoalsScreen() {
     } finally {
       setIsMutationLoading(false);
     }
+  };
+
+  // Filter CBT goals (completed CBT sessions) vs Condition assigned goals
+  const cbtGoals = (dailyGoals || []).filter(
+    (g) =>
+      Boolean(g.cbtSessionId) ||
+      g.category?.toLowerCase() === "cbt" ||
+      g.category?.toLowerCase() === "cbt_recommended" ||
+      g.category?.toLowerCase()?.includes("cbt")
+  );
+
+  const conditionGoals = (dailyGoals || []).filter(
+    (g) =>
+      !(
+        Boolean(g.cbtSessionId) ||
+        g.category?.toLowerCase() === "cbt" ||
+        g.category?.toLowerCase() === "cbt_recommended" ||
+        g.category?.toLowerCase()?.includes("cbt")
+      )
+  );
+
+  const renderGoalItem = (goal: any, isCbtType: boolean) => {
+    const diffColors: Record<string, string> = {
+      easy: "#10B981",
+      medium: "#F59E0B",
+      large: "#8B5CF6",
+      very_small: "#3B82F6"
+    };
+    const diffColor = diffColors[goal.difficulty] || "#64748B";
+
+    return (
+      <View
+        key={goal._id}
+        style={[
+          styles.goalCard,
+          goal.completed && styles.goalCardCompleted,
+          goal.isDailyChallenge && styles.challengeGoalCard,
+          isCbtType ? styles.cbtGoalCardBorder : styles.conditionGoalCardBorder
+        ]}
+      >
+        {/* Left checkbox */}
+        <TouchableOpacity
+          style={[styles.checkbox, goal.completed && styles.checkboxActive]}
+          onPress={() => !goal.completed && handleTriggerComplete(goal)}
+          disabled={goal.completed || goal.skipped}
+        >
+          {goal.completed && <Ionicons name="checkmark" size={16} color="#FFF" />}
+        </TouchableOpacity>
+
+        {/* Mid Details */}
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          onPress={() => handleOpenGoalDetails(goal)}
+          disabled={goal.completed || goal.skipped}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 2 }}>
+            {isCbtType ? (
+              <View style={styles.cbtBadge}>
+                <Ionicons name="sparkles" size={10} color="#6D28D9" style={{ marginRight: 2 }} />
+                <Text style={styles.cbtBadgeText}>CBT GOAL</Text>
+              </View>
+            ) : (
+              <View style={styles.assignedBadge}>
+                <Ionicons name="fitness-outline" size={10} color="#047857" style={{ marginRight: 2 }} />
+                <Text style={styles.assignedBadgeText}>PATIENT GOAL</Text>
+              </View>
+            )}
+
+            {goal.isDailyChallenge && (
+              <View style={styles.challengeBadge}>
+                <Text style={styles.challengeBadgeText}>CHALLENGE</Text>
+              </View>
+            )}
+
+            <View style={[styles.diffIndicator, { backgroundColor: diffColor + "15" }]}>
+              <Text style={[styles.diffIndicatorText, { color: diffColor }]}>
+                {goal.difficulty.toUpperCase().replace("_", " ")}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={[styles.goalTitleText, goal.completed && styles.goalTextCompleted]}>
+            {goal.goalTitle}
+          </Text>
+          <Text style={styles.goalDescText} numberOfLines={1}>{goal.goalDescription}</Text>
+
+          {goal.aiReason ? (
+            <View style={styles.aiReasonBox}>
+              <Ionicons name="bulb-outline" size={11} color="#6D28D9" style={{ marginRight: 4 }} />
+              <Text style={styles.aiReasonText} numberOfLines={1}>
+                {goal.aiReason}
+              </Text>
+            </View>
+          ) : null}
+
+          {goal.scheduledTime ? (
+            <View style={styles.scheduledRow}>
+              <Ionicons name="alarm-outline" size={12} color="#6D28D9" style={{ marginRight: 4 }} />
+              <Text style={styles.scheduledText}>
+                Scheduled: {new Date(goal.scheduledTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+              </Text>
+            </View>
+          ) : null}
+        </TouchableOpacity>
+
+        {/* Right Points/XP award badge */}
+        <View style={{ alignItems: 'flex-end', justifyContent: 'center', gap: 6, marginLeft: 6 }}>
+          <View style={styles.xpRewardBadge}>
+            <Text style={styles.xpRewardText}>+{goal.xpAwarded || goal.points} XP</Text>
+          </View>
+          {!goal.completed && !goal.skipped && (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity onPress={() => handleOpenGoalDetails(goal)} style={styles.smallCircleButton}>
+                <Ionicons name="alarm-outline" size={16} color="#6D28D9" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleSkip(goal)} style={styles.smallCircleButton}>
+                <Ionicons name="close" size={16} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    );
   };
 
   return (
@@ -293,7 +416,7 @@ export default function MicroGoalsScreen() {
               key={tab.id}
               style={[styles.tabButton, activeTab === tab.id && styles.tabButtonActive]}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
                 setActiveTab(tab.id as any);
               }}
             >
@@ -309,140 +432,107 @@ export default function MicroGoalsScreen() {
             ========================================== */}
         {activeTab === "goals" && (
           <View style={styles.tabSection}>
-            {/* Morning checkin check */}
-            {!todayCheckin ? (
-              <View style={styles.glassCard}>
-                <Text style={styles.checkinTitle}>🌅 Morning Check-in</Text>
-                <Text style={styles.checkinSubtitle}>How are you feeling today? Your choice will adapt today's wellness plan.</Text>
-                
-                {isCheckinLoading ? (
-                  <ActivityIndicator size="large" color={Colors.primary} style={{ marginVertical: 20 }} />
-                ) : (
-                  <View style={styles.moodGrid}>
-                    {MOODS.map(mood => (
-                      <TouchableOpacity
-                        key={mood.value}
-                        style={styles.moodBtn}
-                        onPress={() => handleMoodSelect(mood.value)}
-                      >
-                        <Text style={styles.moodText}>{mood.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ) : (
-              <View style={{ width: '100%', gap: 12 }}>
-                {/* Active Check-in mood notice */}
+            <View style={{ width: '100%', gap: 12 }}>
+              {/* Morning checkin check */}
+              {!todayCheckin ? (
+                <View style={styles.glassCard}>
+                  <Text style={styles.checkinTitle}>🌅 Morning Check-in</Text>
+                  <Text style={styles.checkinSubtitle}>How are you feeling today? Your choice will adapt today's wellness plan.</Text>
+
+                  {isCheckinLoading ? (
+                    <ActivityIndicator size="large" color={Colors.primary} style={{ marginVertical: 20 }} />
+                  ) : (
+                    <View style={styles.moodGrid}>
+                      {MOODS.map(mood => (
+                        <TouchableOpacity
+                          key={mood.value}
+                          style={styles.moodBtn}
+                          onPress={() => handleMoodSelect(mood.value)}
+                        >
+                          <Text style={styles.moodText}>{mood.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              ) : (
                 <View style={styles.moodBanner}>
                   <Ionicons name="sunny-outline" size={20} color="#6D28D9" style={{ marginRight: 8 }} />
                   <Text style={styles.moodBannerText}>
                     Today's check-in: <Text style={{ fontWeight: 'bold' }}>{todayCheckin.mood.toUpperCase()}</Text>. Focus is adjusted.
                   </Text>
                 </View>
+              )}
 
-                {/* Progress bar */}
-                {totalGoalsCount > 0 && (
-                  <View style={styles.glassCard}>
-                    <View style={styles.progressBarRow}>
-                      <Text style={styles.progressTitle}>Daily Focus Progress</Text>
-                      <Text style={styles.progressValText}>{completedCount} of {totalGoalsCount} completed</Text>
-                    </View>
-                    <View style={styles.progressTrack}>
-                      <View style={[styles.progressBar, { width: `${progressPercent * 100}%` }]} />
-                    </View>
+              {/* Progress bar */}
+              {totalGoalsCount > 0 && (
+                <View style={styles.glassCard}>
+                  <View style={styles.progressBarRow}>
+                    <Text style={styles.progressTitle}>Daily Focus Progress</Text>
+                    <Text style={styles.progressValText}>{completedCount} of {totalGoalsCount} completed</Text>
                   </View>
-                )}
-
-                {/* Goals Listing */}
-                <Text style={styles.sectionTitle}>Today's Habit Actions</Text>
-                {dailyGoals.length === 0 ? (
-                  <View style={styles.emptyContainer}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.emptyText}>Building your recommendation schedule...</Text>
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressBar, { width: `${progressPercent * 100}%` }]} />
                   </View>
-                ) : (
-                  dailyGoals.map(goal => {
-                    const diffColors: Record<string, string> = {
-                      easy: "#10B981",
-                      medium: "#F59E0B",
-                      large: "#8B5CF6",
-                      very_small: "#3B82F6"
-                    };
-                    const diffColor = diffColors[goal.difficulty] || "#64748B";
+                </View>
+              )}
 
-                    return (
-                      <View
-                        key={goal._id}
-                        style={[
-                          styles.goalCard,
-                          goal.completed && styles.goalCardCompleted,
-                          goal.isDailyChallenge && styles.challengeGoalCard
-                        ]}
-                      >
-                        {/* Left checkbox */}
-                        <TouchableOpacity
-                          style={[styles.checkbox, goal.completed && styles.checkboxActive]}
-                          onPress={() => !goal.completed && handleTriggerComplete(goal)}
-                          disabled={goal.completed || goal.skipped}
-                        >
-                          {goal.completed && <Ionicons name="checkmark" size={16} color="#FFF" />}
-                        </TouchableOpacity>
-
-                        {/* Mid Details */}
-                        <TouchableOpacity
-                          style={{ flex: 1 }}
-                          onPress={() => handleOpenGoalDetails(goal)}
-                          disabled={goal.completed || goal.skipped}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                            {goal.isDailyChallenge && (
-                              <View style={styles.challengeBadge}>
-                                <Text style={styles.challengeBadgeText}>CHALLENGE</Text>
-                              </View>
-                            )}
-                            <View style={[styles.diffIndicator, { backgroundColor: diffColor + "15" }]}>
-                              <Text style={[styles.diffIndicatorText, { color: diffColor }]}>
-                                {goal.difficulty.toUpperCase().replace("_", " ")}
-                              </Text>
-                            </View>
-                          </View>
-                          <Text style={[styles.goalTitleText, goal.completed && styles.goalTextCompleted]}>
-                            {goal.goalTitle}
-                          </Text>
-                          <Text style={styles.goalDescText} numberOfLines={1}>{goal.goalDescription}</Text>
-                          {goal.scheduledTime ? (
-                            <View style={styles.scheduledRow}>
-                              <Ionicons name="alarm-outline" size={12} color="#6D28D9" style={{ marginRight: 4 }} />
-                              <Text style={styles.scheduledText}>
-                                Scheduled: {new Date(goal.scheduledTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                              </Text>
-                            </View>
-                          ) : null}
-                        </TouchableOpacity>
-
-                        {/* Right Points/XP award badge */}
-                        <View style={{ alignItems: 'flex-end', justifyContent: 'center', gap: 6 }}>
-                          <View style={styles.xpRewardBadge}>
-                            <Text style={styles.xpRewardText}>+{goal.xpAwarded || goal.points} XP</Text>
-                          </View>
-                          {!goal.completed && !goal.skipped && (
-                            <View style={{ flexDirection: 'row', gap: 8 }}>
-                              <TouchableOpacity onPress={() => handleOpenGoalDetails(goal)} style={styles.smallCircleButton}>
-                                <Ionicons name="alarm-outline" size={16} color="#6D28D9" />
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => handleSkip(goal)} style={styles.smallCircleButton}>
-                                <Ionicons name="close" size={16} color="#EF4444" />
-                              </TouchableOpacity>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    );
-                  })
-                )}
+              {/* PART 1: CBT COMPLETED / RECOMMENDED GOALS */}
+              <View style={styles.sectionHeaderContainer}>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="sparkles" size={18} color="#7C3AED" />
+                  <Text style={styles.sectionTitleText}>CBT Session Goals</Text>
+                  <View style={styles.sectionBadgeCbt}>
+                    <Text style={styles.sectionBadgeCbtText}>{cbtGoals.length} Active</Text>
+                  </View>
+                </View>
+                <Text style={styles.sectionSubtext}>
+                  Behavioral activation goals generated after completing CBT exercises.
+                </Text>
               </View>
-            )}
+
+              {cbtGoals.length === 0 ? (
+                <View style={styles.emptyCardBox}>
+                  <Ionicons name="sparkles-outline" size={24} color="#A78BFA" style={{ marginBottom: 4 }} />
+                  <Text style={styles.emptyCardTitle}>No CBT Goals Active Today</Text>
+                  <Text style={styles.emptyCardDesc}>
+                    Complete a CBT therapy exercise to unlock personalized post-session goals.
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ gap: 8 }}>
+                  {cbtGoals.map((goal) => renderGoalItem(goal, true))}
+                </View>
+              )}
+
+              {/* PART 2: PATIENT CONDITION ASSIGNED GOALS */}
+              <View style={[styles.sectionHeaderContainer, { marginTop: 14 }]}>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="fitness-outline" size={18} color="#059669" />
+                  <Text style={styles.sectionTitleText}>Patient Condition Goals</Text>
+                  <View style={styles.sectionBadgeAssigned}>
+                    <Text style={styles.sectionBadgeAssignedText}>{conditionGoals.length} Active</Text>
+                  </View>
+                </View>
+                <Text style={styles.sectionSubtext}>
+                  Habits & daily goals assigned based on your health condition & screening.
+                </Text>
+              </View>
+
+              {conditionGoals.length === 0 ? (
+                <View style={styles.emptyCardBox}>
+                  <Ionicons name="heart-outline" size={24} color="#34D399" style={{ marginBottom: 4 }} />
+                  <Text style={styles.emptyCardTitle}>No Condition Goals Assigned Today</Text>
+                  <Text style={styles.emptyCardDesc}>
+                    Complete your morning check-in to generate daily condition assigned goals.
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ gap: 8 }}>
+                  {conditionGoals.map((goal) => renderGoalItem(goal, false))}
+                </View>
+              )}
+            </View>
           </View>
         )}
 
@@ -455,7 +545,7 @@ export default function MicroGoalsScreen() {
             <View style={styles.glassCard}>
               <Text style={styles.sectionTitle}>🗓️ Weekly Missions</Text>
               <Text style={styles.checkinSubtitle}>Resets every Monday. Complete all tracks to earn bonus rewards.</Text>
-              
+
               {weeklyMission ? (
                 <View style={{ gap: 12, marginTop: 10 }}>
                   {/* Goal count track */}
@@ -655,10 +745,10 @@ export default function MicroGoalsScreen() {
                     <Ionicons name="close" size={24} color={Colors.text} />
                   </TouchableOpacity>
                 </View>
-                
+
                 <Text style={styles.detailsTitle}>🎯 {selectedGoal.goalTitle}</Text>
                 <Text style={styles.detailsDesc}>{selectedGoal.goalDescription}</Text>
-                
+
                 <View style={styles.detailCard}>
                   <Ionicons name="leaf-outline" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
                   <View style={{ flex: 1 }}>
@@ -710,7 +800,7 @@ export default function MicroGoalsScreen() {
             </View>
 
             <Text style={styles.checkinSubtitle}>Choose relative delay from current time. Reminders will notify you automatically.</Text>
-            
+
             <View style={styles.relativeGrid}>
               {[
                 { label: "⚡ Start Now", min: 1 },
@@ -745,7 +835,7 @@ export default function MicroGoalsScreen() {
             </View>
 
             <Text style={styles.checkinSubtitle}>Delay this action for a short break:</Text>
-            
+
             <View style={styles.relativeGrid}>
               {[
                 { label: "Snooze 10m", min: 10 },
@@ -771,7 +861,7 @@ export default function MicroGoalsScreen() {
           <View style={styles.feelingModalContent}>
             <Text style={styles.feelingPromptTitle}>Reflective Moment</Text>
             <Text style={styles.feelingPromptDesc}>How do you feel after completing this wellness action?</Text>
-            
+
             <View style={styles.feelingActionRow}>
               {[
                 { label: "😊 Better", val: "better" },
@@ -1363,6 +1453,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: Theme.spacing.lg,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 28,
     width: '100%',
   },
   modalHeader: {
@@ -1537,5 +1628,123 @@ const styles = StyleSheet.create({
   },
   actionBtnOutline: {
     width: '100%',
+  },
+  sectionHeaderContainer: {
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionTitleText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 15,
+    color: Colors.text,
+  },
+  sectionBadgeCbt: {
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  sectionBadgeCbtText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 10,
+    color: '#6D28D9',
+  },
+  sectionBadgeAssigned: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  sectionBadgeAssignedText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 10,
+    color: '#047857',
+  },
+  sectionSubtext: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    marginBottom: 6,
+  },
+  cbtGoalCardBorder: {
+    borderColor: '#DDD6FE',
+    backgroundColor: '#FAF5FF',
+  },
+  conditionGoalCardBorder: {
+    borderColor: '#E2E8F0',
+  },
+  cbtBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EDE9FE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  cbtBadgeText: {
+    fontSize: 9,
+    fontFamily: Theme.fontFamily.bold,
+    color: '#6D28D9',
+  },
+  assignedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  assignedBadgeText: {
+    fontSize: 9,
+    fontFamily: Theme.fontFamily.bold,
+    color: '#047857',
+  },
+  emptyCardBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    borderRadius: 16,
+    padding: Theme.spacing.md,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderStyle: 'dashed',
+    marginVertical: 4,
+  },
+  emptyCardTitle: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 13,
+    color: Colors.text,
+    marginTop: 2,
+  },
+  emptyCardDesc: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  aiReasonBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  aiReasonText: {
+    fontFamily: Theme.fontFamily.medium,
+    fontSize: 11,
+    color: '#6D28D9',
+    flex: 1,
   },
 });

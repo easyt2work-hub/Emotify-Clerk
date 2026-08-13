@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, User, Phone } from "lucide-react";
 import { useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { api } from "../../convex/_generated/api";
 
 interface UserType {
   _id: string;
@@ -57,33 +57,30 @@ export default function EditUserModal({ user, onClose, onSuccess }: { user: User
   return createPortal(
     <div style={{
       position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: "rgba(3, 8, 18, 0.75)",
-      backdropFilter: "blur(12px)",
+      top: 0, left: 0, right: 0, bottom: 0,
+      background: "rgba(15, 23, 42, 0.4)",
+      backdropFilter: "blur(14px)",
       zIndex: 99999,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      padding: "20px"
+      padding: 20,
     }}>
       <div className="glass-panel" style={{
         width: "100%",
-        maxWidth: "500px",
-        padding: "36px",
-        borderRadius: "20px",
-        border: "1px solid rgba(59, 130, 246, 0.2)",
-        boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
-        background: "rgba(8, 18, 38, 0.98)",
+        maxWidth: 500,
+        padding: 36,
+        borderRadius: 20,
+        border: "1px solid var(--border-color)",
+        boxShadow: "0 24px 60px rgba(0,0,0,0.12)",
+        background: "#ffffff",
         display: "flex",
         flexDirection: "column",
-        gap: "24px"
+        gap: 24,
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "white", margin: "0 0 4px 0" }}>Edit User</h2>
+            <h2 style={{ fontSize: "1.4rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px 0" }}>Edit User</h2>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", margin: 0 }}>
               Update credentials and active status for the user profile.
             </p>
@@ -91,12 +88,13 @@ export default function EditUserModal({ user, onClose, onSuccess }: { user: User
           <button
             onClick={onClose}
             style={{
-              background: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
+              background: "#f1f5f9",
+              border: "1px solid #cbd5e1",
               color: "var(--text-secondary)",
               cursor: "pointer",
-              padding: "6px",
-              borderRadius: "50%"
+              padding: 6,
+              borderRadius: "50%",
+              display: "flex",
             }}
           >
             <X size={18} />
@@ -113,16 +111,16 @@ export default function EditUserModal({ user, onClose, onSuccess }: { user: User
                 placeholder="Enter full name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                style={{
+              style={{
                   width: "100%",
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "#ffffff",
+                  border: "1px solid var(--input-border)",
                   padding: "12px 12px 12px 38px",
                   borderRadius: "10px",
-                  color: "white",
+                  color: "var(--text-primary)",
                   fontSize: "0.95rem",
                   outline: "none",
-                  boxSizing: "border-box"
+                  boxSizing: "border-box" as const,
                 }}
               />
             </div>
@@ -138,14 +136,14 @@ export default function EditUserModal({ user, onClose, onSuccess }: { user: User
                 onChange={(e) => setEmail(e.target.value)}
                 style={{
                   width: "100%",
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "#ffffff",
+                  border: "1px solid var(--input-border)",
                   padding: "12px 12px 12px 16px",
                   borderRadius: "10px",
-                  color: "white",
+                  color: "var(--text-primary)",
                   fontSize: "0.95rem",
                   outline: "none",
-                  boxSizing: "border-box"
+                  boxSizing: "border-box" as const,
                 }}
               />
             </div>
@@ -161,16 +159,16 @@ export default function EditUserModal({ user, onClose, onSuccess }: { user: User
                 maxLength={10}
                 value={mobileNumber}
                 onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, ""))}
-                style={{
+              style={{
                   width: "100%",
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "#ffffff",
+                  border: "1px solid var(--input-border)",
                   padding: "12px 12px 12px 38px",
                   borderRadius: "10px",
-                  color: "white",
+                  color: "var(--text-primary)",
                   fontSize: "0.95rem",
                   outline: "none",
-                  boxSizing: "border-box"
+                  boxSizing: "border-box" as const,
                 }}
               />
             </div>
@@ -188,12 +186,19 @@ export default function EditUserModal({ user, onClose, onSuccess }: { user: User
                     flex: 1,
                     padding: "10px",
                     borderRadius: "8px",
-                    border: `1px solid ${status === s ? "var(--accent-primary)" : "rgba(255,255,255,0.05)"}`,
-                    background: status === s ? "rgba(59, 130, 246, 0.15)" : "rgba(255,255,255,0.02)",
-                    color: status === s ? "white" : "var(--text-secondary)",
+                    border: `1px solid ${status === s
+                      ? (s === "active" ? "rgba(16,185,129,0.4)" : "rgba(239,68,68,0.4)")
+                      : "var(--border-color)"}`,
+                    background: status === s
+                      ? (s === "active" ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.08)")
+                      : "#f8fafc",
+                    color: status === s
+                      ? (s === "active" ? "#10b981" : "#ef4444")
+                      : "var(--text-secondary)",
                     cursor: "pointer",
                     fontWeight: 600,
-                    textTransform: "capitalize"
+                    textTransform: "capitalize" as const,
+                    fontSize: "0.9rem",
                   }}
                 >
                   {s}
@@ -205,12 +210,12 @@ export default function EditUserModal({ user, onClose, onSuccess }: { user: User
           {error && (
             <div style={{
               padding: "10px",
-              background: "rgba(239, 68, 68, 0.1)",
+              background: "rgba(239, 68, 68, 0.08)",
               border: "1px solid rgba(239, 68, 68, 0.2)",
               borderRadius: "8px",
-              color: "#FCA5A5",
+              color: "var(--danger)",
               fontSize: "0.85rem",
-              textAlign: "center"
+              textAlign: "center",
             }}>
               {error}
             </div>

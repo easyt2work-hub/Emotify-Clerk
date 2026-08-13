@@ -45,13 +45,21 @@ export const getActiveApiKey = query({
   args: {},
   handler: async (ctx) => {
     const keyDoc = await ctx.db.query("apiKeys").order("desc").first();
-    return keyDoc?.key || null;
+    if (!keyDoc) return null;
+    if (keyDoc.expiresAt && keyDoc.expiresAt < Date.now()) return null;
+    return keyDoc.key || null;
   }
 });
 
 export const insertApiKey = mutation({
   args: { key: v.string() },
   handler: async (ctx, args) => {
+    // Purge old keys to keep table clean and prevent invalid key attempts
+    const existing = await ctx.db.query("apiKeys").collect();
+    for (const doc of existing) {
+      await ctx.db.delete(doc._id);
+    }
+
     return await ctx.db.insert("apiKeys", {
       key: args.key,
       createdAt: Date.now(),
@@ -180,7 +188,7 @@ export const acceptGoal = mutation({
 
     // Resolve which goals were selected
     let chosenIds = args.selectedGoalIds;
-    let selectedGoals = [];
+    let selectedGoals: any[] = [];
 
     if (session.recommendedGoals && session.recommendedGoals.length > 0) {
       if (!chosenIds) {
@@ -321,7 +329,7 @@ export const submitMessage = action({
     sessionId: v.id("cbtSessions"),
     content: v.string()
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Unauthenticated");
 
@@ -335,31 +343,30 @@ export const submitMessage = action({
     }
 
     const conversationHistory = [...session.conversation, { role: "user", content: sanitizedMsg, timestamp: Date.now() }];
-    
+
     // Save user message immediately to session (Visual Feedback / State durability)
     await ctx.runMutation(internal.cbt.updateSessionInternal, {
       sessionId: args.sessionId,
       updates: { conversation: conversationHistory, timestamp: Date.now() }
     });
 
-    let apiKey = await ctx.runQuery(api.cbt.getActiveApiKey);
-    if (!apiKey) {
-      apiKey = process.env.GEMINI_API_KEY;
-    }
-    if (!apiKey) {
-      // Mock Fallback when API key is missing
-      console.warn("No GEMINI_API_KEY found. Running mock CBT fallback.");
+    const dbKey = await ctx.runQuery(api.cbt.getActiveApiKey);
+    const envKey = process.env.GEMINI_API_KEY || null;
+    const apiKeys = Array.from(new Set([dbKey, envKey].filter(Boolean) as string[]));
+
+    if (apiKeys.length === 0) {
+      console.warn("No GEMINI_API_KEY found in DB or env. Running offline CBT fallback.");
       return await handleMockResponse(ctx, args.sessionId, session, sanitizedMsg, conversationHistory);
     }
 
     try {
       // Construct prompt based on current step
-      const responseJson = await callGeminiEngine(apiKey, session.currentStep, conversationHistory);
-      
+      const responseJson = await callGeminiEngine(apiKeys, session.currentStep, conversationHistory);
+
       // 2. SAFETY GATE: Assess Immediate Danger
       if (responseJson.riskDetected) {
         const safetyMessage = responseJson.responseMessage || "I'm hearing that you are going through a really difficult time right now, and I want to make sure you are safe. Please know you are not alone and help is available. I encourage you to contact the Suicide & Crisis Lifeline by calling or texting 988, or reach out to a trusted family member or counsellor. Please contact someone who can help support you right now.";
-        
+
         // Save safety alerts in database
         await ctx.runMutation(api.alerts.createAlert, {
           userId: session.userId,
@@ -415,7 +422,7 @@ export const submitMessage = action({
             updates.currentStep = "clarification";
             updates.clarificationQuestion = responseJson.clarificationQuestion;
             updates.clarificationOptions = responseJson.clarificationOptions;
-            
+
             const reply = responseJson.responseMessage || `Which of these sounds closer to what you're thinking?\n1. ${responseJson.clarificationOptions[0]}\n2. ${responseJson.clarificationOptions[1]}`;
             const updatedHistory = [...conversationHistory, { role: "assistant", content: reply, timestamp: Date.now() }];
             updates.conversation = updatedHistory;
@@ -459,7 +466,7 @@ export const submitMessage = action({
         // Identify cognitive distortion internally, generate challenge questions, ask 1st.
         const firstQuestion = responseJson.challengeQuestions?.[0] || "What evidence supports this thought?";
         const reply = `${responseJson.responseMessage || "Thank you for clarifying."}\n\n${firstQuestion}`;
-        
+
         const updatedHistory = [...conversationHistory, { role: "assistant", content: reply, timestamp: Date.now() }];
         await ctx.runMutation(internal.cbt.updateSessionInternal, {
           sessionId: args.sessionId,
@@ -507,7 +514,7 @@ export const submitMessage = action({
           // Transition to Reflection
           const reflectionPrompt = "Reflecting on all of this, what do you think now?";
           const updatedHistory = [...conversationHistory, { role: "assistant", content: reflectionPrompt, timestamp: Date.now() }];
-          
+
           await ctx.runMutation(internal.cbt.updateSessionInternal, {
             sessionId: args.sessionId,
             updates: {
@@ -529,7 +536,7 @@ export const submitMessage = action({
           "I don't have to be perfect to do a good job."
         ];
         const intro = responseJson.responseMessage || "I've drafted three balanced thoughts based on our chat. Which one feels most helpful to you? Feel free to select and customize it:";
-        
+
         const updatedHistory = [...conversationHistory, { role: "assistant", content: `${intro}\n\n1. ${thoughts[0]}\n\n2. ${thoughts[1]}\n\n3. ${thoughts[2]}`, timestamp: Date.now() }];
         await ctx.runMutation(internal.cbt.updateSessionInternal, {
           sessionId: args.sessionId,
@@ -549,7 +556,7 @@ export const submitMessage = action({
       return { responseMessage: "I see. Let's continue.", step: session.currentStep };
 
     } catch (error) {
-      console.error("Error in submitMessage action:", error);
+      console.warn("Gemini API call unavailable/timed out. Switching to offline CBT fallback logic:", error);
       return await handleMockResponse(ctx, args.sessionId, session, sanitizedMsg, conversationHistory);
     }
   }
@@ -593,19 +600,19 @@ export const recommendGoalAction = action({
 
     const isHighRisk = session.riskFlags !== undefined && session.riskFlags.length > 0;
 
-    let apiKey = await ctx.runQuery(api.cbt.getActiveApiKey);
-    if (!apiKey) {
-      apiKey = process.env.GEMINI_API_KEY;
-    }
-    if (!apiKey) {
+    const dbKey = await ctx.runQuery(api.cbt.getActiveApiKey);
+    const envKey = process.env.GEMINI_API_KEY;
+    const apiKeys = Array.from(new Set([dbKey, envKey].filter(Boolean) as string[]));
+
+    if (apiKeys.length === 0) {
       // Mock Fallback goal recommendation
       const mockGoals = getMockGoalRecommendations(session.situation || "stress", phq9, gad7, isHighRisk);
       await ctx.runMutation(internal.cbt.updateSessionInternal, {
         sessionId: args.sessionId,
-        updates: { 
-          recommendedGoals: mockGoals, 
-          recommendedGoal: mockGoals[0], 
-          timestamp: Date.now() 
+        updates: {
+          recommendedGoals: mockGoals,
+          recommendedGoal: mockGoals[0],
+          timestamp: Date.now()
         }
       });
       return mockGoals;
@@ -704,28 +711,18 @@ Instructions for memory:
 Do NOT output markdown format, other text, or wrapper tags. Return raw JSON.`;
       }
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: "application/json", maxOutputTokens: 2048 }
-          })
-        }
-      );
+      const resJson = await fetchGeminiWithFallback(apiKeys, {
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json", maxOutputTokens: 2048 }
+      }, 25000);
 
-      if (!response.ok) throw new Error("Gemini API request failed.");
-
-      const resJson = await response.json();
       const text = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
       const cleaned = cleanJsonResponse(text);
       let goalJson;
       try {
         goalJson = JSON.parse(cleaned);
       } catch (e) {
-        console.error("Failed to parse Gemini Goal Recommendation JSON:", cleaned);
+        console.warn("Failed to parse Gemini Goal Recommendation JSON:", cleaned);
         throw e;
       }
 
@@ -733,24 +730,24 @@ Do NOT output markdown format, other text, or wrapper tags. Return raw JSON.`;
 
       await ctx.runMutation(internal.cbt.updateSessionInternal, {
         sessionId: args.sessionId,
-        updates: { 
-          recommendedGoals: goalsList, 
+        updates: {
+          recommendedGoals: goalsList,
           recommendedGoal: goalsList[0], // backward compatibility
-          timestamp: Date.now() 
+          timestamp: Date.now()
         }
       });
 
       return goalsList;
 
     } catch (err) {
-      console.error("Error generating goal recommendation:", err);
+      console.warn("Error generating goal recommendation, falling back to mock goals:", err);
       const mockGoals = getMockGoalRecommendations(session.situation || "stress", phq9, gad7, isHighRisk);
       await ctx.runMutation(internal.cbt.updateSessionInternal, {
         sessionId: args.sessionId,
-        updates: { 
-          recommendedGoals: mockGoals, 
-          recommendedGoal: mockGoals[0], 
-          timestamp: Date.now() 
+        updates: {
+          recommendedGoals: mockGoals,
+          recommendedGoal: mockGoals[0],
+          timestamp: Date.now()
         }
       });
       return mockGoals;
@@ -770,11 +767,11 @@ function cleanJsonResponse(rawText: string | undefined): string {
     cleaned = cleaned.replace(/\n?```$/, "");
     cleaned = cleaned.trim();
   }
-  
+
   // Replace invalid escaped apostrophes \' or \’ with normal apostrophe '
   cleaned = cleaned.replace(/\\'/g, "'");
   cleaned = cleaned.replace(/\\’/g, "’");
-  
+
   // Auto-repair JSON if truncated
   if (!cleaned.endsWith("}")) {
     // If trailing comma, strip it
@@ -791,7 +788,7 @@ function cleanJsonResponse(rawText: string | undefined): string {
     if (openQuotes % 2 !== 0) {
       cleaned += '"';
     }
-    
+
     // Balance braces and brackets
     const braces: string[] = [];
     for (let i = 0; i < cleaned.length; i++) {
@@ -809,10 +806,10 @@ function cleanJsonResponse(rawText: string | undefined): string {
       cleaned += braces.pop();
     }
   }
-  
+
   const startIdx = cleaned.indexOf("{");
   if (startIdx === -1) return cleaned;
-  
+
   let braceCount = 0;
   for (let i = startIdx; i < cleaned.length; i++) {
     if (cleaned[i] === "{") {
@@ -827,7 +824,69 @@ function cleanJsonResponse(rawText: string | undefined): string {
   return cleaned;
 }
 
-async function callGeminiEngine(apiKey: string, step: string, history: any[]): Promise<any> {
+async function fetchGeminiWithFallback(apiKeys: string | string[], payload: any, timeoutMs = 45000): Promise<any> {
+  const keys = (Array.isArray(apiKeys) ? apiKeys : [apiKeys]).filter((k): k is string => Boolean(k) && typeof k === "string");
+  // gemini-3.1-flash-lite first (faster, lower latency), gemini-3.5-flash as fallback
+  const models = ["gemini-3.1-flash-lite", "gemini-3.5-flash"];
+  let lastError: any = null;
+
+  for (const apiKey of keys) {
+    let keyFailedWithRateLimitOrAuth = false;
+    for (const model of models) {
+      if (keyFailedWithRateLimitOrAuth) break;
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            return await response.json();
+          }
+
+          const status = response.status;
+          lastError = new Error(`Gemini API HTTP ${status} on ${model}`);
+          if (status === 401 || status === 403 || status === 429) {
+            console.warn(`Gemini API key hit rate limit/auth error (HTTP ${status}). Trying next key/fallback...`);
+            keyFailedWithRateLimitOrAuth = true;
+            break;
+          } else if (status === 503 || status >= 500) {
+            console.warn(`Gemini API ${model} returned HTTP ${status} (attempt ${attempt + 1}). Retrying...`);
+            await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)));
+            continue;
+          } else {
+            break; // Move to next model if 404
+          }
+        } catch (err: any) {
+          clearTimeout(timeoutId);
+          lastError = err;
+          const isAbort = err.name === "AbortError" || err.message === "AbortError" || err.message?.includes("abort");
+          if (isAbort) {
+            console.warn(`Gemini API call timed out after ${timeoutMs}ms for model ${model}. Trying next model...`);
+            break; // Don't retry on timeout — move to next model immediately
+          } else {
+            console.warn(`Gemini API call network error for model ${model}:`, err?.message || err);
+            await new Promise((resolve) => setTimeout(resolve, 400));
+          }
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error("All Gemini API keys and models failed");
+}
+
+async function callGeminiEngine(apiKey: string | string[], step: string, history: any[]): Promise<any> {
   let promptDetails = "";
 
   if (step === "understanding") {
@@ -891,45 +950,26 @@ You NEVER use technical psychological jargon (CBT, cognitive distortions, catast
 You reply in a text-message format: brief, engaging, empathetic, typically 2-3 sentences.
 You must output ONLY raw JSON that strictly adheres to the requested schema. Do not enclose in markdown blocks.`;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  const payload = {
+    contents: [
+      ...history.map(msg => ({
+        role: msg.role === "user" ? "user" : "model",
+        parts: [{ text: msg.content }]
+      })),
+      { role: "user", parts: [{ text: promptDetails }] }
+    ],
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    generationConfig: { responseMimeType: "application/json", maxOutputTokens: 2048 }
+  };
 
+  const resJson = await fetchGeminiWithFallback(apiKey, payload, 25000);
+  const text = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+  const cleaned = cleanJsonResponse(text);
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            ...history.map(msg => ({
-              role: msg.role === "user" ? "user" : "model",
-              parts: [{ text: msg.content }]
-            })),
-            { role: "user", parts: [{ text: promptDetails }] }
-          ],
-          systemInstruction: { parts: [{ text: systemInstruction }] },
-          generationConfig: { responseMimeType: "application/json", maxOutputTokens: 2048 }
-        }),
-        signal: controller.signal
-      }
-    );
-    clearTimeout(timeoutId);
-
-    if (!response.ok) throw new Error(`Gemini API error ${response.status}`);
-
-    const resJson = await response.json();
-    const text = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
-    const cleaned = cleanJsonResponse(text);
-    try {
-      return JSON.parse(cleaned);
-    } catch (e) {
-      console.error("Failed to parse Gemini Dialogue Response JSON:", cleaned);
-      throw e;
-    }
-  } catch (err) {
-    clearTimeout(timeoutId);
-    throw err;
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.warn("Failed to parse Gemini Dialogue Response JSON:", cleaned);
+    throw e;
   }
 }
 
@@ -942,7 +982,7 @@ async function handleMockResponse(ctx: any, sessionId: Id<"cbtSessions">, sessio
   const safetyRegex = /\b(die|suicide|kill myself|self harm|hurt myself)\b/i;
   if (safetyRegex.test(clean)) {
     const safetyMessage = "I'm really concerned to hear that, and I want to support your safety. Please reach out to the Crisis Lifeline by dialing 988 immediately, or contact a trusted friend or counsellor. You are not alone, and there is help available.";
-    
+
     await ctx.runMutation(api.alerts.createAlert, {
       userId: session.userId,
       type: "suicideRisk",
@@ -988,7 +1028,7 @@ async function handleMockResponse(ctx: any, sessionId: Id<"cbtSessions">, sessio
       const firstQuestion = "What evidence supports the idea that this is completely ruined?";
       const transitionReply = `I understand. You feel like you're being hard on yourself about this situation.\n\nLet's work through it. First: ${firstQuestion}`;
       const updated = [...history, { role: "assistant", content: transitionReply, timestamp: now }];
-      
+
       await ctx.runMutation(internal.cbt.updateSessionInternal, {
         sessionId,
         updates: {
@@ -1030,7 +1070,7 @@ async function handleMockResponse(ctx: any, sessionId: Id<"cbtSessions">, sessio
       const nextIndex = index + 1;
       const nextQuestion = session.challengeQuestions?.[nextIndex] || "Could you tell me more?";
       const updated = [...history, { role: "assistant", content: nextQuestion, timestamp: now }];
-      
+
       await ctx.runMutation(internal.cbt.updateSessionInternal, {
         sessionId,
         updates: {
@@ -1044,7 +1084,7 @@ async function handleMockResponse(ctx: any, sessionId: Id<"cbtSessions">, sessio
     } else {
       const reflectionPrompt = "Reflecting on all of this, what do you think now?";
       const updated = [...history, { role: "assistant", content: reflectionPrompt, timestamp: now }];
-      
+
       await ctx.runMutation(internal.cbt.updateSessionInternal, {
         sessionId,
         updates: {
@@ -1066,7 +1106,7 @@ async function handleMockResponse(ctx: any, sessionId: Id<"cbtSessions">, sessio
     ];
     const intro = "I've drafted three balanced thoughts based on our chat. Choose the one that fits best:";
     const updated = [...history, { role: "assistant", content: `${intro}\n\n1. ${thoughts[0]}\n\n2. ${thoughts[1]}`, timestamp: now }];
-    
+
     await ctx.runMutation(internal.cbt.updateSessionInternal, {
       sessionId,
       updates: {
@@ -1230,7 +1270,7 @@ function getMockGoalRecommendations(situation: string, phq9: number, gad7: numbe
   };
 
   const sit = situation.toLowerCase();
-  
+
   if (phq9 >= 15 || gad7 >= 15) {
     return [
       breatheGoal,
@@ -1271,7 +1311,7 @@ function getMockGoalRecommendations(situation: string, phq9: number, gad7: numbe
   if (sit.includes("exam") || sit.includes("test") || sit.includes("fail") || sit.includes("study") || sit.includes("work")) {
     return [studyGoal, breatheGoal, waterGoal, walkGoal];
   }
-  
+
   if (sit.includes("friend") || sit.includes("relationship") || sit.includes("parent") || sit.includes("lonely") || sit.includes("argue")) {
     return [journalGoal, waterGoal, walkGoal, breatheGoal];
   }

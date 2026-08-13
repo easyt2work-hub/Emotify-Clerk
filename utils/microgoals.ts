@@ -77,18 +77,18 @@ function seededShuffle<T>(arr: T[], seed: string): T[] {
 }
 
 export function generateMicroGoals(state: { 
-  wsas_total: number; 
-  reqol10_total: number; 
+  wsas_total?: number; 
+  reqol10_total?: number; 
   triage_level: string;
   userId?: string;
   dateStr?: string;
 }): MicroGoal[] {
-  const { wsas_total, reqol10_total, triage_level, userId = "", dateStr = "" } = state;
+  const { triage_level, userId = "", dateStr = "" } = state;
   const seed = `${userId}-${dateStr}`;
   
   let baseList: MicroGoal[] = [];
-  const isSevere = wsas_total > 20 || triage_level === "severe" || triage_level === "suicide_flag" || triage_level === "psychosis_flag";
-  const isModerate = wsas_total >= 11 && wsas_total <= 20;
+  const isSevere = triage_level === "severe" || triage_level === "suicide_flag" || triage_level === "psychosis_flag";
+  const isModerate = triage_level === "moderate";
   
   if (isSevere) {
     baseList = [...SEVERE_GOALS];
@@ -96,23 +96,6 @@ export function generateMicroGoals(state: {
     baseList = [...MODERATE_GOALS];
   } else {
     baseList = [...MILD_GOALS];
-  }
-
-  // Wellbeing booster injection: if ReQoL total < 15 and user is NOT severe
-  // (we want severe users to focus strictly on tiny basic goals to avoid overwhelming them)
-  const isLowWellbeing = reqol10_total < 15;
-  if (isLowWellbeing && !isSevere) {
-    // Pick 1 or 2 wellbeing goals and mix them in
-    const shuffledWellbeing = seed 
-      ? seededShuffle(WELLBEING_GOALS, seed + "-wellbeing")
-      : [...WELLBEING_GOALS].sort(() => 0.5 - Math.random());
-    const wellbeingToInject = shuffledWellbeing.slice(0, 1);
-    
-    // Shuffle base list and swap out one for wellbeing goal
-    const shuffledBase = seed
-      ? seededShuffle(baseList, seed + "-base")
-      : baseList.sort(() => 0.5 - Math.random());
-    return [...wellbeingToInject, ...shuffledBase.slice(0, 2)];
   }
 
   // Standard random selection of 3 goals

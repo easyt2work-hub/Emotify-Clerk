@@ -1,14 +1,14 @@
 export interface UserState {
   triage_level: 'mild' | 'moderate' | 'severe' | 'suicide_flag' | 'psychosis_flag';
-  wsas_total: number;
-  reqol10_total: number;
+  wsas_total?: number;
+  reqol10_total?: number;
   alias: string;
   recentEmotions?: any[];
   recentTools?: any[];
 }
 
 export function generateInsightMessage(state: UserState): { greeting: string; recommendation: string; context: string } {
-  const { triage_level, wsas_total, reqol10_total, alias, recentEmotions, recentTools } = state;
+  const { triage_level, alias, recentEmotions, recentTools } = state;
   
   let greeting = `Hi ${alias}, how are you feeling today?`;
   let recommendation = "";
@@ -26,13 +26,6 @@ export function generateInsightMessage(state: UserState): { greeting: string; re
     greeting = `Welcome back, ${alias}.`;
     recommendation = "Self-Help Journey";
     context = "You're doing well. Keep up the great consistency with your daily emotional check-ins to maintain your momentum.";
-  }
-
-  // Override context based on specific functional impacts if severe isn't the primary driver
-  if (wsas_total > 20 && triage_level !== 'severe' && triage_level !== 'suicide_flag' && triage_level !== 'psychosis_flag') {
-    context = "Daily tasks seem overwhelming right now. Focus on just one tiny MicroGoal today — leave the rest for later.";
-  } else if (reqol10_total < 15 && triage_level !== 'severe' && triage_level !== 'suicide_flag' && triage_level !== 'psychosis_flag') {
-    context = "Your well-being is taking a hit. Give yourself permission to prioritize a relaxation tool today.";
   }
 
   // Adjust context if they have recent tool usage or emotions

@@ -43,16 +43,27 @@ export const listPatients = query({
       .withIndex("by_role", (q) => q.eq("role", "patient"))
       .collect();
 
+    // Sort chronologically to determine sequential patient IDs if not yet set
+    users.sort((a, b) => (a._creationTime || a.created_at || 0) - (b._creationTime || b.created_at || 0));
+
+    // Assign permanent/stable patientId first
+    let mapped = users.map((u, idx) => ({
+      ...u,
+      patientId: u.patientId || String(101 + idx),
+      temp_password: u.temp_password || "Patient123!",
+    }));
+
     if (args.search) {
       const s = args.search.toLowerCase();
-      users = users.filter(
+      mapped = mapped.filter(
         (u) =>
+          u.patientId.toLowerCase().includes(s) ||
           (u.full_name || "").toLowerCase().includes(s) ||
           (u.mobile_number || "").includes(s)
       );
     }
 
-    return users;
+    return mapped;
   },
 });
 
@@ -81,11 +92,23 @@ export const createUser = mutation({
 
     const password_hash = await hashPassword(args.password);
 
+    // Calculate next sequential patientId based on all existing patients
+    const allUsers = await ctx.db.query("users").collect();
+    let maxId = 100;
+    for (const u of allUsers) {
+      if (u.patientId && !isNaN(Number(u.patientId))) {
+        maxId = Math.max(maxId, Number(u.patientId));
+      }
+    }
+    const nextPatientId = String(maxId + 1);
+
     const userId = await ctx.db.insert("users", {
+      patientId: args.role === "patient" ? nextPatientId : undefined,
       full_name: args.full_name,
       mobile_number: args.mobile_number,
       email: args.email,
       password_hash,
+      temp_password: args.password,
       role: args.role,
       status: args.status,
       is_first_login: true,
@@ -155,6 +178,55 @@ export const editUser = mutation({
     });
   },
 });
+
+/** Admin: Reset user password to a random one and return the plain-text password for sharing */
+export const resetPassword = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const admin = await checkAdmin(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    // Generate a secure random 12-char alphanumeric password
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    let newPassword = "";
+    const arr = new Uint8Array(12);
+    crypto.getRandomValues(arr);
+    for (let i = 0; i < 12; i++) {
+      newPassword += chars[arr[i] % chars.length];
+    }
+
+    const password_hash = await hashPassword(newPassword);
+
+    await ctx.db.patch(args.userId, {
+      password_hash,
+      is_first_login: true, // Force password change on next login
+      temp_password: newPassword, // Stored plain-text temporarily for admin to read & share
+      updated_at: Date.now(),
+    });
+
+    return { newPassword };
+  },
+});
+
+/** Admin: Get the temporary plain-text password for a user (cleared after reading) */
+export const getAndClearTempPassword = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const admin = await checkAdmin(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    const temp = (user as any).temp_password || null;
+    // Clear the temp password after reading
+    if (temp) {
+      await ctx.db.patch(args.userId, { temp_password: undefined });
+    }
+    return temp;
+  },
+});
+
 
 /** Complete onboarding details */
 export const completeOnboarding = mutation({
@@ -370,7 +442,7 @@ export const login = mutation({
     if (!isValid) {
       const currentAttempts = (user.failedLoginAttempts || 0) + 1;
       const updates: any = { failedLoginAttempts: currentAttempts };
-      
+
       let errorMsg = "Invalid mobile number or password";
       if (currentAttempts >= 5) {
         updates.lockoutUntil = now + 15 * 60000; // 15 minutes lockout
@@ -379,7 +451,7 @@ export const login = mutation({
       } else {
         await logAuditEvent(ctx, user._id, "failed_login", `Incorrect password. Attempt ${currentAttempts}/5.`);
       }
-      
+
       await ctx.db.patch(user._id, updates);
       return { error: errorMsg };
     }
@@ -630,6 +702,15 @@ export const deleteUser = mutation({
 
     const user = await ctx.db.get(args.userId);
     if (!user) throw new Error("User not found");
+
+    // Create soft-delete entry in trash table
+    await ctx.db.insert("trash", {
+      itemType: "patient",
+      itemId: user.patientId || String(args.userId),
+      deletedData: JSON.stringify({ user }),
+      deletedBy: admin.full_name || admin.email || "Admin",
+      deletedAt: Date.now(),
+    });
 
     // List of tables referencing user data:
     // 1. sessions

@@ -23,6 +23,7 @@ import type * as followUps from "../followUps.js";
 import type * as http from "../http.js";
 import type * as insights from "../insights.js";
 import type * as jpmrLogs from "../jpmrLogs.js";
+import type * as jpmrVideos from "../jpmrVideos.js";
 import type * as microGoals from "../microGoals.js";
 import type * as patients from "../patients.js";
 import type * as rateLimiter from "../rateLimiter.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   insights: typeof insights;
   jpmrLogs: typeof jpmrLogs;
+  jpmrVideos: typeof jpmrVideos;
   microGoals: typeof microGoals;
   patients: typeof patients;
   rateLimiter: typeof rateLimiter;

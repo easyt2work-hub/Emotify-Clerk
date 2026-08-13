@@ -77,9 +77,9 @@ export const updateProfile = mutation({
     if (latestScreening?.phq9_total > 15) personality_traits.push("Needs gentle support");
 
     // Wellness goals logic
-    if (latestScreening?.reqol10_total < 15) wellness_goals.push("Gentle recovery");
+    if (latestScreening?.phq9_total > 10) wellness_goals.push("Gentle recovery");
     if (latestScreening?.phq9_total > 5) wellness_goals.push("Improve mood");
-    if (latestScreening?.wsas_total > 10) wellness_goals.push("Build daily habits");
+    if (latestScreening?.gad7_total > 5) wellness_goals.push("Build daily habits");
     if (jpmrLogs.length < 2) wellness_goals.push("Improve focus");
 
     // Energy pattern (mock logic based on creation times)

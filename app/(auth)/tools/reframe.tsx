@@ -586,7 +586,9 @@ export default function ReframeScreen() {
                 // Recommend simple goal: drink water
                 setLoading(true);
                 try {
-                  await acceptGoal();
+                  if (activeSession) {
+                    await acceptGoal({ sessionId: activeSession._id });
+                  }
                   router.replace("/(auth)/(tabs)");
                 } catch(e) { console.error(e) } finally { setLoading(false) }
               }}>
@@ -926,24 +928,14 @@ export default function ReframeScreen() {
             ) : (
               <View style={styles.inputBar}>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, { maxHeight: 100 }]}
                   value={inputText}
                   onChangeText={setInputText}
                   placeholder="Share your thoughts here..."
                   placeholderTextColor={Colors.textMuted}
                   multiline
-                  maxHeight={100}
                 />
                 
-                {currentStep === "guided_discovery" && (
-                  <TouchableOpacity
-                    onPress={handleSkipQuestion}
-                    style={styles.skipQuestionBtn}
-                    title="Skip question"
-                  >
-                    <Text style={styles.skipBtnText}>Skip</Text>
-                  </TouchableOpacity>
-                )}
 
                 <TouchableOpacity
                   onPress={() => handleSendMessage()}

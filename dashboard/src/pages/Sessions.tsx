@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { usePaginatedQuery, useMutation, useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import { 
   Calendar, Clock, User, X, FileText, CheckCircle, AlertTriangle, Trash2, 
   RotateCcw, Search, ChevronRight, MessageSquare, Brain, Smile, Activity, HelpCircle 
@@ -71,7 +71,7 @@ export default function Sessions() {
   // Data processing for CBT sessions
   const filteredCbtSessions = useMemo(() => {
     if (!cbtSessions) return [];
-    return cbtSessions.filter(s => {
+    return cbtSessions.filter((s: any) => {
       return (
         s.patientName?.toLowerCase().includes(cbtSearchQuery.toLowerCase()) ||
         s.automaticThought?.toLowerCase().includes(cbtSearchQuery.toLowerCase()) ||
@@ -105,7 +105,7 @@ export default function Sessions() {
       return;
     }
 
-    const patient = patients?.find(p => p._id === selectedPatientId);
+    const patient = patients?.find((p: any) => p._id === selectedPatientId);
     if (!patient) return;
 
     setError(""); setSuccessMsg(""); setLoading(true);
@@ -475,7 +475,7 @@ export default function Sessions() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredCbtSessions.map((session) => (
+                    {filteredCbtSessions.map((session: any) => (
                       <tr key={session._id}>
                         <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{session.patientName}</td>
                         <td style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -524,7 +524,7 @@ export default function Sessions() {
             <form onSubmit={handleCreateAppointment} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               <select value={selectedPatientId} onChange={(e) => setSelectedPatientId(e.target.value)} className="hud-input">
                 <option value="">Select Patient...</option>
-                {patients?.map(p => <option key={p._id} value={p._id}>{p.full_name}</option>)}
+                {patients?.map((p: any) => <option key={p._id} value={p._id}>{p.full_name}</option>)}
               </select>
               <input type="text" placeholder="Title (e.g. Weekly Check-in)" value={title} onChange={(e) => setTitle(e.target.value)} className="hud-input" />
               <div style={{ display: 'flex', gap: '16px' }}>
@@ -584,14 +584,24 @@ export default function Sessions() {
 
       {/* CBT SESSION DETAIL TRANSCRIPT MODAL */}
       {selectedCbtSession && createPortal(
-        <div className="modal-overlay" style={overlayStyle}>
-          <div className="glass-panel hud-panel" style={{ ...modalStyle, maxWidth: '700px' }}>
-            {renderCloseButton(() => setSelectedCbtSession(null))}
-            
-            <h2 style={{ fontSize: "1.4rem", margin: "0 0 4px 0", color: "var(--text-primary)" }}>CBT Session Dialog Transcript</h2>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: "0 0 16px 0" }}>
-              Patient: <strong style={{ color: 'var(--text-primary)' }}>{selectedCbtSession.patientName}</strong> • Date: {new Date(selectedCbtSession.timestamp).toLocaleString()}
-            </p>
+        <div className="modal-overlay" style={overlayStyle} onClick={() => setSelectedCbtSession(null)}>
+          <div className="glass-panel hud-panel animate-fade-in" style={{ ...modalStyle, maxWidth: '750px', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+              <div>
+                <h2 style={{ fontSize: "1.4rem", margin: "0 0 4px 0", color: "var(--text-primary)" }}>CBT Session Dialog Transcript</h2>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
+                  Patient: <strong style={{ color: 'var(--text-primary)' }}>{selectedCbtSession.patientName}</strong> • Date: {new Date(selectedCbtSession.timestamp).toLocaleString()}
+                </p>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setSelectedCbtSession(null)} 
+                className="btn btn-secondary"
+                style={{ padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                ✕ Close
+              </button>
+            </div>
 
             {/* Session Clinical Metadata Summary */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", padding: "16px", background: "rgba(0,0,0,0.02)", border: "1px solid var(--border-color)", borderRadius: "12px", marginBottom: "16px" }}>
@@ -629,37 +639,41 @@ export default function Sessions() {
             </div>
 
             {/* Conversation list */}
-            <h3 style={{ fontSize: "1.1rem", margin: "10px 0 8px 0", color: "var(--text-primary)" }}>Counselor Dialogue Log</h3>
-            <div style={{ maxHeight: "280px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", padding: "14px", border: "1px solid var(--border-color)", borderRadius: "12px", background: "#f8fafc" }}>
+            <h3 style={{ fontSize: "1.1rem", margin: "14px 0 10px 0", color: "var(--text-primary)" }}>Counselor Dialogue Log</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "16px", border: "1px solid var(--border-color)", borderRadius: "12px", background: "#f8fafc" }}>
               {selectedCbtSession.conversation?.map((msg: any, idx: number) => {
                 const isUser = msg.role === "user";
                 return (
                   <div key={idx} style={{
                     alignSelf: isUser ? "flex-end" : "flex-start",
-                    maxWidth: "80%",
+                    maxWidth: "85%",
                     background: isUser ? "var(--accent-primary)" : "#ffffff",
-                    border: isUser ? "none" : "1px solid #e2e8f0",
-                    color: isUser ? "white" : "var(--text-primary)",
+                    border: isUser ? "none" : "1px solid #cbd5e1",
+                    color: isUser ? "white" : "#1e293b",
                     borderRadius: "14px",
-                    padding: "10px 14px",
+                    padding: "10px 16px",
                     boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
                   }}>
-                    <strong style={{ display: "block", fontSize: "0.75rem", color: isUser ? "rgba(255,255,255,0.7)" : "var(--text-secondary)", marginBottom: "2px" }}>
+                    <strong style={{ display: "block", fontSize: "0.75rem", color: isUser ? "rgba(255,255,255,0.7)" : "#64748b", marginBottom: "2px" }}>
                       {isUser ? "Student" : "Compassionate AI Counselor"}
                     </strong>
-                    <span style={{ fontSize: "0.92rem", lineHeight: 1.4 }}>{msg.content}</span>
+                    <span style={{ fontSize: "0.95rem", lineHeight: 1.45 }}>{msg.content}</span>
                   </div>
                 );
               })}
             </div>
+
             
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
-              <button className="btn btn-secondary" onClick={() => setSelectedCbtSession(null)}>Close Transcript</button>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--border-color)" }}>
+              <button className="btn btn-secondary" onClick={() => setSelectedCbtSession(null)} style={{ padding: "8px 20px", fontWeight: 650 }}>
+                Close Transcript
+              </button>
             </div>
           </div>
         </div>,
         document.body
       )}
+
     </div>
   );
 }

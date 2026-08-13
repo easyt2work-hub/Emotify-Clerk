@@ -138,8 +138,6 @@ export default function EmotionMapScreen() {
   const latestScreening = useQuery(api.screening.getLatest, {
     userId: user?.id ?? "",
   });
-  const wsas_total = latestScreening?.wsas_total ?? 0;
-  const reqol_total = latestScreening?.reqol10_total ?? 0;
 
   // New log flow states
   const [step, setStep] = useState(1);
@@ -608,29 +606,6 @@ export default function EmotionMapScreen() {
                 </View>
 
                 {/* Personalization Alerts */}
-                {wsas_total > 10 && (
-                  <View style={styles.clinicalAlertCard}>
-                    <Ionicons name="warning" size={20} color="#EA580C" style={{ marginTop: 2, marginRight: 8 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.clinicalAlertTitle}>WSAS (Daily functioning)</Text>
-                      <Text style={styles.clinicalAlertText}>
-                        Daily tasks seem harder right now. Try setting one small MicroGoal today.
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {reqol_total < 15 && (
-                  <View style={[styles.clinicalAlertCard, { borderColor: '#3B82F6', backgroundColor: '#EFF6FF' }]}>
-                    <Ionicons name="heart" size={20} color="#3B82F6" style={{ marginTop: 2, marginRight: 8 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.clinicalAlertTitle, { color: '#1E40AF' }]}>Well-being</Text>
-                      <Text style={[styles.clinicalAlertText, { color: '#1E3A8A' }]}>
-                        Your wellbeing could use a boost. Consider a small enjoyable activity today.
-                      </Text>
-                    </View>
-                  </View>
-                )}
 
                 <View style={styles.navRow}>
                   <Button 

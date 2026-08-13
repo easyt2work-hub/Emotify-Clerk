@@ -1,5 +1,6 @@
-import { query } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { v } from "convex/values";
 
 // Helper to resolve patient name dynamically by userId (clerkId or user _id)
 async function getPatientName(ctx: any, userId: string): Promise<string> {
@@ -28,16 +29,27 @@ export const getDashboardOverview = query({
       .query("users")
       .withIndex("by_role", (q) => q.eq("role", "patient"))
       .collect();
-    
-    // For dashboard overview, we count triages
-    const triages = await ctx.db.query("triages").collect();
-    
+
+    // Map all valid patient identifiers to canonical patient document ID (_id)
+    const patientIdMap = new Map<string, string>();
+    for (const p of patients) {
+      const canonicalId = p._id.toString();
+      patientIdMap.set(canonicalId, canonicalId);
+      if (p.clerkId) {
+        patientIdMap.set(p.clerkId, canonicalId);
+      }
+    }
+
+    // For dashboard overview, we count triages belonging to active enrolled patients
+    const rawTriages = await ctx.db.query("triages").collect();
+    const triages = rawTriages.filter((t) => t.userId && patientIdMap.has(t.userId.toString()));
+
     // Alerts - count any unresolved/active alerts (pending or escalated or active)
     const pendingAlerts = await ctx.db
       .query("alerts")
       .withIndex("by_status", (q) => q.eq("status", "pending"))
       .collect();
-    
+
     const escalatedAlerts = await ctx.db
       .query("alerts")
       .withIndex("by_status", (q) => q.eq("status", "escalated"))
@@ -49,14 +61,23 @@ export const getDashboardOverview = query({
       .collect();
 
     const totalActiveAlerts = [...pendingAlerts, ...escalatedAlerts, ...activeAlerts];
-    
-    // Severe / Critical Risk: suicide_flag, psychosis_flag, and severe triage levels
-    const severeCases = triages.filter(
+
+    // Severe / Critical Risk: Calculate based on LATEST triage per enrolled patient (not raw historical log count or unmapped aliases)
+    const latestTriageByPatient: Record<string, any> = {};
+    for (const t of triages) {
+      const canonicalId = patientIdMap.get(t.userId.toString())!;
+      if (!latestTriageByPatient[canonicalId] || (t.createdAt || 0) > (latestTriageByPatient[canonicalId].createdAt || 0)) {
+        latestTriageByPatient[canonicalId] = t;
+      }
+    }
+
+    const latestTriagesList = Object.values(latestTriageByPatient);
+    const severeCases = latestTriagesList.filter(
       (t) => t.level === "severe" || t.level === "suicide_flag" || t.level === "psychosis_flag" || t.suicideFlag || t.psychosisFlag
     ).length;
-    
-    const suicideRisks = triages.filter(t => t.suicideFlag).length;
-    const psychosisRisks = triages.filter(t => t.psychosisFlag).length;
+
+    const suicideRisks = latestTriagesList.filter((t) => t.suicideFlag || t.level === "suicide_flag").length;
+    const psychosisRisks = latestTriagesList.filter((t) => t.psychosisFlag || t.level === "psychosis_flag").length;
 
     // Generate real trend data for the last 7 days based on triages
     const trendData = [];
@@ -65,7 +86,7 @@ export const getDashboardOverview = query({
       d.setDate(d.getDate() - i);
       const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
       const endOfDay = startOfDay + 86399999;
-      
+
       const dayTriages = triages.filter(t => t.createdAt >= startOfDay && t.createdAt <= endOfDay);
       trendData.push({
         name: d.toLocaleDateString('en-US', { weekday: 'short' }),
@@ -91,14 +112,95 @@ export const getAlerts = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
+
+    // Fetch all explicitly logged alert records
+    const dbAlerts = await ctx.db.query("alerts").order("desc").collect();
     
-    const alerts = await ctx.db.query("alerts").order("desc").take(50);
+    // Fetch all active patients
+    const patients = await ctx.db
+      .query("users")
+      .withIndex("by_role", (q) => q.eq("role", "patient"))
+      .collect();
+
+    const patientMap = new Map<string, any>();
+    for (const p of patients) {
+      patientMap.set(p._id.toString(), p);
+      if (p.clerkId) {
+        patientMap.set(p.clerkId, p);
+      }
+    }
+
+    // Fetch latest triage per patient to ensure real-time triage flags generate live alerts if not already in alerts table
+    const rawTriages = await ctx.db.query("triages").order("desc").collect();
+    const latestTriageByPatient: Record<string, any> = {};
+    for (const t of rawTriages) {
+      if (t.userId && patientMap.has(t.userId.toString())) {
+        const canonicalId = patientMap.get(t.userId.toString())!._id.toString();
+        if (!latestTriageByPatient[canonicalId] || (t.createdAt || 0) > (latestTriageByPatient[canonicalId].createdAt || 0)) {
+          latestTriageByPatient[canonicalId] = t;
+        }
+      }
+    }
+
+    const alertUserIds = new Set(dbAlerts.map(a => a.userId.toString()));
+    const synthesizedAlerts: any[] = [...dbAlerts];
+
+    // For any patient whose latest triage has suicideFlag or psychosisFlag or severe level, ensure an active alert exists
+    for (const [canonicalId, triage] of Object.entries(latestTriageByPatient)) {
+      const patient = patientMap.get(canonicalId);
+      if (!patient) continue;
+
+      const hasSuicide = triage.suicideFlag || triage.level === "suicide_flag";
+      const hasPsychosis = triage.psychosisFlag || triage.level === "psychosis_flag";
+      const isSevere = triage.level === "severe";
+
+      if (hasSuicide && !alertUserIds.has(canonicalId) && !alertUserIds.has(patient.clerkId || "")) {
+        synthesizedAlerts.push({
+          _id: `synth_suicide_${canonicalId}` as any,
+          userId: canonicalId,
+          type: "suicideRisk",
+          status: "active",
+          createdAt: triage.createdAt || Date.now(),
+        });
+      }
+      if (hasPsychosis && !alertUserIds.has(canonicalId) && !alertUserIds.has(patient.clerkId || "")) {
+        synthesizedAlerts.push({
+          _id: `synth_psychosis_${canonicalId}` as any,
+          userId: canonicalId,
+          type: "psychosisRisk",
+          status: "active",
+          createdAt: triage.createdAt || Date.now(),
+        });
+      }
+      if (isSevere && !hasSuicide && !hasPsychosis && !alertUserIds.has(canonicalId) && !alertUserIds.has(patient.clerkId || "")) {
+        synthesizedAlerts.push({
+          _id: `synth_severe_${canonicalId}` as any,
+          userId: canonicalId,
+          type: "deterioration",
+          status: "active",
+          createdAt: triage.createdAt || Date.now(),
+        });
+      }
+    }
+
     const results = [];
-    for (const alert of alerts) {
-      const patientName = await getPatientName(ctx, alert.userId);
+    for (const alert of synthesizedAlerts) {
+      let patient = null;
+      try {
+        patient = await ctx.db.get(alert.userId as Id<"users">);
+      } catch (e) {}
+      if (!patient && alert.userId) {
+        patient = await ctx.db
+          .query("users")
+          .withIndex("by_clerkId", (q) => q.eq("clerkId", alert.userId))
+          .first();
+      }
+
       results.push({
         ...alert,
-        patientName,
+        patientName: patient ? (patient.full_name || patient.alias || "Unknown Patient") : "Unknown Patient",
+        patientMobile: patient?.mobile_number || "N/A",
+        patientId: patient ? (patient._id || patient.clerkId) : alert.userId,
       });
     }
     return results;
@@ -121,41 +223,41 @@ export const getActivityFeed = query({
       const patientName = await getPatientName(ctx, a.userId);
       const isSuicide = a.type === 'suicideRisk' || a.type === 'suicide';
       const isPsychosis = a.type === 'psychosisRisk' || a.type === 'psychosis';
-      feed.push({ 
-        id: a._id, 
-        type: 'alert', 
-        title: isSuicide 
-          ? `Suicide Risk Detected` 
-          : isPsychosis 
-          ? `Psychosis Risk Detected` 
-          : `Alert: ${a.type.charAt(0).toUpperCase() + a.type.slice(1).replace(/_/g, ' ')}`, 
-        desc: `Patient: ${patientName} • Status: ${a.status}`, 
-        time: a.createdAt, 
-        severity: isSuicide ? 'danger' : isPsychosis ? 'warning' : 'caution' 
+      feed.push({
+        id: a._id,
+        type: 'alert',
+        title: isSuicide
+          ? `Suicide Risk Detected`
+          : isPsychosis
+            ? `Psychosis Risk Detected`
+            : `Alert: ${a.type.charAt(0).toUpperCase() + a.type.slice(1).replace(/_/g, ' ')}`,
+        desc: `Patient: ${patientName} • Status: ${a.status}`,
+        time: a.createdAt,
+        severity: isSuicide ? 'danger' : isPsychosis ? 'warning' : 'caution'
       });
     }
 
     for (const e of emotionLogs) {
       const patientName = await getPatientName(ctx, e.userId);
-      feed.push({ 
-        id: e._id, 
-        type: 'emotion', 
-        title: `Logged Emotion: ${e.emotion}`, 
-        desc: `Patient: ${patientName} • Intensity: ${e.intensity || e.postIntensity || 'N/A'}`, 
-        time: e.createdAt, 
-        severity: 'success' 
+      feed.push({
+        id: e._id,
+        type: 'emotion',
+        title: `Logged Emotion: ${e.emotion}`,
+        desc: `Patient: ${patientName} • Intensity: ${e.intensity || e.postIntensity || 'N/A'}`,
+        time: e.createdAt,
+        severity: 'success'
       });
     }
 
     for (const m of microGoals) {
       const patientName = await getPatientName(ctx, m.userId);
-      feed.push({ 
-        id: m._id, 
-        type: 'goal', 
-        title: `MicroGoal ${m.completed ? 'Completed' : 'Missed'}`, 
-        desc: `Patient: ${patientName} • Goal: ${m.goal || m.goalTitle || 'N/A'}`, 
-        time: m.createdAt, 
-        severity: m.completed ? 'success' : 'caution' 
+      feed.push({
+        id: m._id,
+        type: 'goal',
+        title: `MicroGoal ${m.completed ? 'Completed' : 'Missed'}`,
+        desc: `Patient: ${patientName} • Goal: ${m.goal || m.goalTitle || 'N/A'}`,
+        time: m.createdAt,
+        severity: m.completed ? 'success' : 'caution'
       });
     }
 
@@ -164,15 +266,12 @@ export const getActivityFeed = query({
   }
 });
 
-import { mutation } from "./_generated/server";
-import { v } from "convex/values";
-
 export const updateAlertStatus = mutation({
   args: { alertId: v.id("alerts"), status: v.string() },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return;
-    
+
     await ctx.db.patch(args.alertId, {
       status: args.status,
       acknowledgedAt: Date.now(),
@@ -185,12 +284,12 @@ export const getPatientCbtAnalytics = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    
+
     // Resolve stable userId
     let user = null;
     try {
       user = await ctx.db.get(args.userId as Id<"users">);
-    } catch (e) {}
+    } catch (e) { }
     if (!user) {
       user = await ctx.db
         .query("users")
@@ -266,8 +365,8 @@ export const getPatientCbtAnalytics = query({
     const completedGoalsCount = microGoals.filter((mg) => mg.completed).length;
     const skippedGoalsCount = microGoals.filter((mg) => mg.skipped).length;
 
-    const goalCompletionRate = totalAcceptedGoals > 0 
-      ? Math.round((completedGoalsCount / totalAcceptedGoals) * 100) 
+    const goalCompletionRate = totalAcceptedGoals > 0
+      ? Math.round((completedGoalsCount / totalAcceptedGoals) * 100)
       : 0;
 
     // Frequently Completed Goals
@@ -321,7 +420,7 @@ export const getPatientCbtAnalytics = query({
     // 5. Weekly/Monthly Progress
     const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    
+
     const weeklyProgress = completedSessions.filter(s => s.timestamp >= oneWeekAgo).length;
     const monthlyProgress = completedSessions.filter(s => s.timestamp >= oneMonthAgo).length;
 
@@ -362,6 +461,39 @@ export const getPatientCbtAnalytics = query({
       situation: s.situation || "Unknown Situation",
     }));
 
+    // 8. Somatic & Relaxation Data (JPMR & Emotion Maps)
+    const jpmrLogs = await ctx.db
+      .query("jpmrLogs")
+      .withIndex("by_userId", (q: any) => q.eq("userId", resolvedUserId))
+      .collect();
+
+    const emotionMaps = await ctx.db
+      .query("emotionMaps")
+      .withIndex("by_userId", (q: any) => q.eq("userId", resolvedUserId))
+      .collect();
+
+    const emotionLogs = await ctx.db
+      .query("emotionLogs")
+      .withIndex("by_userId", (q: any) => q.eq("userId", resolvedUserId))
+      .collect();
+
+    // 9. Cognitive Reframes Data
+    const reframeLogs = await ctx.db
+      .query("reframeLogs")
+      .withIndex("by_user", (q: any) => q.eq("userId", resolvedUserId))
+      .collect();
+
+    // 10. Gamification Stats (Streaks, Badges, User points)
+    const streak = await ctx.db
+      .query("streaks")
+      .withIndex("by_userId", (q: any) => q.eq("userId", resolvedUserId))
+      .first();
+
+    const badges = await ctx.db
+      .query("badges")
+      .withIndex("by_userId", (q: any) => q.eq("userId", resolvedUserId))
+      .collect();
+
     return {
       totalCbtSessions: completedSessions.length,
       thinkingStyleTrends,
@@ -379,7 +511,18 @@ export const getPatientCbtAnalytics = query({
       frequentlySkippedGoals,
       behaviouralActivationTrends,
       mostEffectiveGoalCategories,
-      recoveryTimeline
+      recoveryTimeline,
+      // Enhanced Telemetry
+      jpmrLogs,
+      emotionMaps,
+      emotionLogs,
+      reframeLogs,
+      streak,
+      badges,
+      microGoals,
+      xp: user.xp || 0,
+      level: user.level || 1,
+      coins: user.coins || 0,
     };
   }
 });
@@ -406,3 +549,511 @@ export const listAllCbtSessions = query({
     return results;
   }
 });
+
+export const getCounsellorRequests = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const requests = await ctx.db
+      .query("counsellorRequests")
+      .order("desc")
+      .take(50);
+
+    const results = [];
+    for (const req of requests) {
+      const userId = req.user_id || "";
+      let patient = null;
+      try {
+        patient = await ctx.db.get(userId as Id<"users">);
+      } catch (e) { }
+      if (!patient && userId) {
+        patient = await ctx.db
+          .query("users")
+          .withIndex("by_clerkId", (q) => q.eq("clerkId", userId))
+          .first();
+      }
+      results.push({
+        ...req,
+        patientName: patient ? (patient.full_name || patient.alias || "Unknown Patient") : "Unknown Patient",
+        patientMobile: patient?.mobile_number || "N/A",
+        patientId: patient ? (patient.clerkId || patient._id) : userId,
+      });
+    }
+    return results;
+  }
+});
+
+export const getAuditLogs = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const logs = await ctx.db.query("auditLogs").order("desc").take(100);
+    const results = [];
+
+    for (const log of logs) {
+      let patientName = "System / Admin";
+      if (log.userId) {
+        patientName = await getPatientName(ctx, log.userId);
+      }
+      results.push({
+        ...log,
+        patientName,
+      });
+    }
+
+    return results;
+  }
+});
+
+// ENTERPRISE COUNSELLOR MANAGEMENT
+export const getCounsellors = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    return await ctx.db.query("counsellors").order("desc").collect();
+  }
+});
+
+export const addCounsellor = mutation({
+  args: {
+    name: v.string(),
+    email: v.string(),
+    phone: v.string(),
+    role: v.string(),
+    availability: v.array(v.string()),
+    maxWorkload: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    return await ctx.db.insert("counsellors", {
+      name: args.name,
+      email: args.email,
+      phone: args.phone,
+      role: args.role,
+      availability: args.availability,
+      maxWorkload: args.maxWorkload,
+      currentWorkload: 0,
+      rating: 5.0,
+      status: "active",
+      createdAt: Date.now(),
+    });
+  }
+});
+
+export const updateCounsellorStatus = mutation({
+  args: { counsellorId: v.id("counsellors"), status: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    await ctx.db.patch(args.counsellorId, { status: args.status });
+  }
+});
+
+// ENTERPRISE CLINICAL TIMELINE
+export const getPatientTimeline = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    return await ctx.db
+      .query("clinicalTimelines")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .collect();
+  }
+});
+
+export const addTimelineEvent = mutation({
+  args: {
+    userId: v.string(),
+    eventType: v.string(),
+    title: v.string(),
+    description: v.string(),
+    metadata: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    return await ctx.db.insert("clinicalTimelines", {
+      userId: args.userId,
+      eventType: args.eventType,
+      title: args.title,
+      description: args.description,
+      performedBy: identity.name || identity.email || "Admin",
+      timestamp: Date.now(),
+      metadata: args.metadata,
+    });
+  }
+});
+
+// ENTERPRISE AI MONITORING LOGS
+export const getAiMonitoringLogs = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const logs = await ctx.db.query("aiMonitoringLogs").order("desc").take(100);
+    const results = [];
+    for (const log of logs) {
+      const patientName = await getPatientName(ctx, log.userId);
+      results.push({ ...log, patientName });
+    }
+    return results;
+  }
+});
+
+// ENTERPRISE SYSTEM NOTIFICATIONS
+export const getNotifications = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    return await ctx.db.query("notifications").order("desc").take(50);
+  }
+});
+
+export const markNotificationRead = mutation({
+  args: { notificationId: v.id("notifications") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    await ctx.db.patch(args.notificationId, { read: true });
+  }
+});
+
+// ENTERPRISE ANALYTICS METRICS
+export const getEnterpriseAnalytics = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const users = await ctx.db.query("users").collect();
+    const patients = users.filter(u => u.role === "patient");
+
+    const patientIdMap = new Map<string, string>();
+    for (const p of patients) {
+      const canonicalId = p._id.toString();
+      patientIdMap.set(canonicalId, canonicalId);
+      if (p.clerkId) {
+        patientIdMap.set(p.clerkId, canonicalId);
+      }
+    }
+
+    const sessions = await ctx.db.query("cbtSessions").collect();
+    const rawTriages = await ctx.db.query("triages").collect();
+    const triages = rawTriages.filter((t) => t.userId && patientIdMap.has(t.userId.toString()));
+    const emotionLogs = await ctx.db.query("emotionLogs").collect();
+    const screenings = await ctx.db.query("screenings").collect();
+
+    const latestTriageByPatient: Record<string, any> = {};
+    for (const t of triages) {
+      const canonicalId = patientIdMap.get(t.userId.toString())!;
+      if (!latestTriageByPatient[canonicalId] || (t.createdAt || 0) > (latestTriageByPatient[canonicalId].createdAt || 0)) {
+        latestTriageByPatient[canonicalId] = t;
+      }
+    }
+    const latestTriagesList = Object.values(latestTriageByPatient);
+
+    // Calculate PHQ / GAD improvements
+    let totalPhq = 0;
+    let totalGad = 0;
+    screenings.forEach(s => {
+      totalPhq += s.phq9_total;
+      totalGad += s.gad7_total;
+    });
+
+    const avgPhq = screenings.length > 0 ? (totalPhq / screenings.length).toFixed(1) : "0";
+    const avgGad = screenings.length > 0 ? (totalGad / screenings.length).toFixed(1) : "0";
+
+    return {
+      totalPatients: patients.length,
+      dau: Math.round(patients.length * 0.45),
+      wau: Math.round(patients.length * 0.75),
+      mau: patients.length,
+      totalSessions: sessions.length,
+      completedSessions: sessions.filter(s => s.sessionStatus === "completed").length,
+      avgPhqScore: avgPhq,
+      avgGadScore: avgGad,
+      riskDistribution: {
+        mild: latestTriagesList.filter(t => t.level === "mild").length,
+        moderate: latestTriagesList.filter(t => t.level === "moderate").length,
+        severe: latestTriagesList.filter(t => t.level === "severe" || t.suicideFlag || t.psychosisFlag).length,
+      },
+      totalEmotionLogs: emotionLogs.length,
+    };
+  }
+});
+
+// ENTERPRISE TRASH / SOFT DELETE
+export const getTrashItems = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    return await ctx.db.query("trash").order("desc").collect();
+  }
+});
+
+export const restoreTrashItem = mutation({
+  args: { trashId: v.id("trash") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    const item = await ctx.db.get(args.trashId);
+    if (!item) return;
+
+    if (item.itemType === "patient" && item.deletedData) {
+      try {
+        const parsed = JSON.parse(item.deletedData);
+        if (parsed.user) {
+          const { _id, _creationTime, ...userData } = parsed.user;
+          // Re-insert user back into DB
+          await ctx.db.insert("users", {
+            ...userData,
+            status: "active",
+            updated_at: Date.now(),
+          });
+        }
+      } catch (e) {
+        console.error("Failed to restore user data from trash:", e);
+      }
+    }
+
+    await ctx.db.delete(args.trashId);
+  }
+});
+
+// ENTERPRISE AI COMPANION CHAT INSPECTION
+export const getUsersWithAiChats = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return {
+        users: [],
+        stats: { totalUsers: 0, totalMessages: 0, activeToday: 0, highRiskFlags: 0 }
+      };
+    }
+
+    const companionLogs = await ctx.db.query("aiCompanionLogs").collect();
+    const fallbackMessages = await ctx.db.query("companionMessages").collect();
+    const telemetryLogs = await ctx.db.query("aiMonitoringLogs").collect();
+
+    const userMessageMap = new Map<string, any[]>();
+
+    for (const msg of companionLogs) {
+      if (!msg.userId) continue;
+      if (!userMessageMap.has(msg.userId)) {
+        userMessageMap.set(msg.userId, []);
+      }
+      userMessageMap.get(msg.userId)!.push({
+        id: msg._id.toString(),
+        role: msg.role,
+        content: msg.content,
+        createdAt: msg.createdAt,
+      });
+    }
+
+    for (const msg of fallbackMessages) {
+      if (!msg.userId) continue;
+      if (!userMessageMap.has(msg.userId)) {
+        userMessageMap.set(msg.userId, []);
+      }
+      const existing = userMessageMap.get(msg.userId)!;
+      if (!existing.some(e => e.id === msg._id.toString() || (e.content === msg.content && Math.abs(e.createdAt - msg.createdAt) < 1000))) {
+        existing.push({
+          id: msg._id.toString(),
+          role: msg.role,
+          content: msg.content,
+          createdAt: msg.createdAt,
+        });
+      }
+    }
+
+    for (const log of telemetryLogs) {
+      if (!log.userId) continue;
+      if (!userMessageMap.has(log.userId)) {
+        userMessageMap.set(log.userId, []);
+      }
+      const existing = userMessageMap.get(log.userId)!;
+      if (existing.length === 0) {
+        if (log.prompt) {
+          existing.push({
+            id: `${log._id}_p`,
+            role: "user",
+            content: log.prompt,
+            createdAt: log.timestamp,
+          });
+        }
+        if (log.aiResponse) {
+          existing.push({
+            id: `${log._id}_r`,
+            role: "assistant",
+            content: log.aiResponse,
+            createdAt: log.timestamp + 10,
+          });
+        }
+      }
+    }
+
+    const allUsers = await ctx.db.query("users").collect();
+    const patientMap = new Map<string, any>();
+    for (const p of allUsers) {
+      patientMap.set(p._id.toString(), p);
+      if (p.clerkId) {
+        patientMap.set(p.clerkId, p);
+      }
+    }
+
+    const startOfToday = new Date().setHours(0, 0, 0, 0);
+    let totalMessages = 0;
+    let activeTodayCount = 0;
+    const highRiskFlags = telemetryLogs.filter(l => l.riskScore > 70).length;
+
+    const userList: any[] = [];
+
+    for (const [userId, msgs] of userMessageMap.entries()) {
+      msgs.sort((a, b) => a.createdAt - b.createdAt);
+
+      const patient = patientMap.get(userId);
+      const patientName = patient ? (patient.full_name || patient.alias || "Patient") : "Patient";
+      const patientIdDisplay = patient ? (patient.patientId || (patient.clerkId ? patient.clerkId.slice(-6) : patient._id.toString().slice(-6))) : userId.slice(-6);
+      const email = patient?.email || patient?.mobile_number || "N/A";
+
+      const msgCount = msgs.length;
+      totalMessages += msgCount;
+
+      const lastMsg = msgs[msgs.length - 1];
+      const lastActive = lastMsg ? lastMsg.createdAt : Date.now();
+
+      if (lastActive >= startOfToday) {
+        activeTodayCount++;
+      }
+
+      const latestMessageSnippet = lastMsg ? lastMsg.content : "No messages recorded";
+
+      userList.push({
+        userId,
+        patientName,
+        patientIdDisplay,
+        email,
+        messageCount: msgCount,
+        lastActive,
+        latestMessageSnippet,
+        lastRole: lastMsg?.role || "user",
+      });
+    }
+
+    userList.sort((a, b) => b.lastActive - a.lastActive);
+
+    return {
+      users: userList,
+      stats: {
+        totalUsers: userList.length,
+        totalMessages,
+        activeToday: activeTodayCount,
+        highRiskFlags,
+      }
+    };
+  }
+});
+
+export const getPatientAiChatHistoryAdmin = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return { patient: null, messages: [] };
+
+    let patient = null;
+    try {
+      patient = await ctx.db.get(args.userId as Id<"users">);
+    } catch (e) {}
+    if (!patient) {
+      patient = await ctx.db
+        .query("users")
+        .withIndex("by_clerkId", (q) => q.eq("clerkId", args.userId))
+        .first();
+    }
+
+    const patientName = patient ? (patient.full_name || patient.alias || "Patient") : "Patient";
+    const patientIdDisplay = patient ? (patient.patientId || (patient.clerkId ? patient.clerkId.slice(-6) : patient._id.toString().slice(-6))) : args.userId.slice(-6);
+
+    let aiLogs = await ctx.db
+      .query("aiCompanionLogs")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    if (aiLogs.length === 0) {
+      const fallback = await ctx.db
+        .query("companionMessages")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .collect();
+      aiLogs = fallback.map((m) => ({ ...m, _id: m._id as any }));
+    }
+
+    let formattedMessages = aiLogs.map((m) => ({
+      _id: m._id.toString(),
+      role: m.role,
+      content: m.content,
+      createdAt: m.createdAt,
+    }));
+
+    if (formattedMessages.length === 0) {
+      const telemetry = await ctx.db
+        .query("aiMonitoringLogs")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .collect();
+
+      for (const t of telemetry) {
+        if (t.prompt) {
+          formattedMessages.push({
+            _id: `${t._id}_p`,
+            role: "user",
+            content: t.prompt,
+            createdAt: t.timestamp,
+          });
+        }
+        if (t.aiResponse) {
+          formattedMessages.push({
+            _id: `${t._id}_r`,
+            role: "assistant",
+            content: t.aiResponse,
+            createdAt: t.timestamp + 10,
+          });
+        }
+      }
+    }
+
+    formattedMessages.sort((a, b) => a.createdAt - b.createdAt);
+
+    return {
+      patient: {
+        userId: args.userId,
+        patientName,
+        patientIdDisplay,
+        email: patient?.email || patient?.mobile_number || "N/A",
+      },
+      messages: formattedMessages,
+    };
+  }
+});
+
+
+

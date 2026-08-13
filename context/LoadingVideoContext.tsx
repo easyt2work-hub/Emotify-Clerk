@@ -46,7 +46,7 @@ export function LoadingVideoProvider({ children }: { children: React.ReactNode }
     setIsTransitionLoading(true);
     player.currentTime = 0;
     player.play();
-    
+
     await new Promise<void>((resolve) => setTimeout(resolve, durationMs));
     setIsTransitionLoading(false);
   };

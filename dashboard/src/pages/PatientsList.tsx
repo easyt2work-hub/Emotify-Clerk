@@ -1,25 +1,181 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Users, UserPlus, Search, Edit2, ShieldAlert, ShieldCheck, BarChart2, Trash2 } from "lucide-react";
+import {
+  Users, UserPlus, Search, Edit2, ShieldAlert, ShieldCheck,
+  BarChart2, Trash2, KeyRound, Copy, CheckCheck, Phone, Mail,
+  UserCheck, UserX
+} from "lucide-react";
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { api } from "../../convex/_generated/api";
 import { useNavigate } from "react-router-dom";
 import AddUserModal from "../components/AddUserModal";
 import EditUserModal from "../components/EditUserModal";
 
+/* ─── Tiny helpers ────────────────────────────────────────────── */
+function Avatar({ name }: { name: string }) {
+  const initials = name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+  const hue = [...name].reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
+  return (
+    <div
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        background: `linear-gradient(135deg, hsl(${hue},60%,55%), hsl(${(hue + 40) % 360},65%,60%))`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        fontWeight: 700,
+        fontSize: "0.85rem",
+        color: "#fff",
+        letterSpacing: "0.04em",
+        boxShadow: `0 4px 12px hsl(${hue},50%,55%,0.28)`,
+      }}
+    >
+      {initials}
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const active = (status || "active") === "active";
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        padding: "4px 10px",
+        borderRadius: 20,
+        fontSize: "0.71rem",
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+        background: active ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)",
+        color: active ? "#10b981" : "#ef4444",
+        border: `1px solid ${active ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)"}`,
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: "currentColor",
+          display: "inline-block",
+        }}
+      />
+      {active ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
+type ActionColor = "blue" | "amber" | "red" | "orange" | "green" | "default";
+
+function actionBtnStyle(color: ActionColor): React.CSSProperties {
+  const map: Record<ActionColor, { bg: string; border: string; text: string }> = {
+    blue:    { bg: "rgba(37,99,235,0.07)",   border: "rgba(37,99,235,0.2)",   text: "#2563eb" },
+    amber:   { bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.25)", text: "#d97706" },
+    red:     { bg: "rgba(239,68,68,0.08)",   border: "rgba(239,68,68,0.22)",  text: "#ef4444" },
+    orange:  { bg: "rgba(249,115,22,0.08)",  border: "rgba(249,115,22,0.22)", text: "#ea580c" },
+    green:   { bg: "rgba(16,185,129,0.08)",  border: "rgba(16,185,129,0.22)", text: "#10b981" },
+    default: { bg: "rgba(100,116,139,0.06)", border: "rgba(100,116,139,0.2)", text: "var(--text-secondary)" },
+  };
+  const c = map[color];
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    padding: "5px 11px",
+    borderRadius: 8,
+    fontSize: "0.78rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    border: `1px solid ${c.border}`,
+    background: c.bg,
+    color: c.text,
+    transition: "all 0.18s",
+    whiteSpace: "nowrap" as const,
+  };
+}
+
+const overlayStyle: React.CSSProperties = {
+  position: "fixed",
+  top: 0, left: 0, right: 0, bottom: 0,
+  background: "rgba(15,23,42,0.4)",
+  backdropFilter: "blur(14px)",
+  zIndex: 99999,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 20,
+};
+
+const credLabelStyle: React.CSSProperties = {
+  fontSize: "0.7rem",
+  color: "var(--text-secondary)",
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  fontWeight: 700,
+};
+
+function CredField({ label, value, onCopy }: { label: string; value: string; onCopy?: () => void }) {
+  return (
+    <div>
+      <span style={credLabelStyle}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5 }}>
+        <code
+          style={{
+            flex: 1,
+            fontFamily: "monospace",
+            background: "var(--surface-base)",
+            border: "1px solid var(--border-color)",
+            padding: "7px 12px",
+            borderRadius: 8,
+            fontSize: "0.95rem",
+            color: "var(--accent-primary)",
+            fontWeight: 600,
+          }}
+        >
+          {value}
+        </code>
+        {onCopy && (
+          <button onClick={onCopy} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-secondary)", padding: 5 }}>
+            <Copy size={15} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+/* â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function PatientsList() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
-  
-  // Custom query fetching patient users from users table
+
   const patients = useQuery(api.users.listPatients, { search: searchTerm });
   const toggleStatus = useMutation(api.users.toggleUserStatus);
   const deleteUser = useMutation(api.users.deleteUser);
+  const resetPassword = useMutation(api.users.resetPassword);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
 
-  // Custom confirmation modal state configurations
+  const [resetResult, setResetResult] = useState<{
+    userName: string;
+    userId: string;
+    mobile: string;
+    newPassword: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [resetLoading, setResetLoading] = useState<string | null>(null);
+
   const [confirmConfig, setConfirmConfig] = useState<{
     title: string;
     message: string;
@@ -28,241 +184,327 @@ export default function PatientsList() {
     onConfirm: () => void;
   } | null>(null);
 
-  const handleToggleStatus = async (userId: any, currentStatus: string) => {
+  const handleToggleStatus = (userId: any, currentStatus: string) => {
     const nextStatus = currentStatus === "active" ? "inactive" : "active";
     setConfirmConfig({
       title: currentStatus === "active" ? "Deactivate User Access" : "Activate User Access",
-      message: `Are you sure you want to set this user status to ${nextStatus.toUpperCase()}? This will change their ability to log in to the console.`,
+      message: `Are you sure you want to set this user to ${nextStatus.toUpperCase()}? This will change their ability to log in.`,
       confirmText: currentStatus === "active" ? "Deactivate" : "Activate",
       isDanger: currentStatus === "active",
       onConfirm: async () => {
-        try {
-          await toggleStatus({ userId, status: nextStatus });
-        } catch (err: any) {
-          alert(err.message || "Failed to update status.");
-        }
-      }
+        try { await toggleStatus({ userId, status: nextStatus }); }
+        catch (err: any) { alert(err.message || "Failed to update status."); }
+      },
     });
   };
 
-  const handleDeleteUser = async (userId: any, fullName?: string) => {
+  const handleDeleteUser = (userId: any, fullName?: string) => {
     const name = fullName || "Unknown User";
     setConfirmConfig({
       title: "Delete User Profile?",
-      message: `Are you sure you want to permanently delete user "${name}"? This action is irreversible and will delete all clinical screenings, telemetry logs, and upcoming sessions.`,
+      message: `Permanently delete "${name}"? This will erase all clinical screenings, telemetry logs, and sessions.`,
       confirmText: "Delete Permanently",
       isDanger: true,
       onConfirm: async () => {
-        try {
-          await deleteUser({ userId });
-        } catch (err: any) {
-          alert(err.message || "Failed to delete user.");
-        }
-      }
+        try { await deleteUser({ userId }); }
+        catch (err: any) { alert(err.message || "Failed to delete user."); }
+      },
     });
   };
 
+  const handleResetPassword = (patient: any) => {
+    setConfirmConfig({
+      title: "Reset Password?",
+      message: `Generate a new random password for "${patient.full_name}"? The old password stops working immediately.`,
+      confirmText: "Reset Password",
+      isDanger: true,
+      onConfirm: async () => {
+        setResetLoading(patient._id);
+        try {
+          const result = await resetPassword({ userId: patient._id });
+          setResetResult({ userName: patient.full_name, userId: patient._id, mobile: patient.mobile_number, newPassword: result.newPassword });
+          setCopied(false);
+        } catch (err: any) {
+          alert(err.message || "Failed to reset password.");
+        } finally {
+          setResetLoading(null);
+        }
+      },
+    });
+  };
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const isLoading = patients === undefined;
+  const isEmpty = !isLoading && (!patients || patients.length === 0);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }} className="animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+    <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+
+      {/* Page Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
-          <h1 style={{ fontSize: '2.4rem', marginBottom: '8px', color: 'var(--text-primary)' }}>User Directory</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>Manage credentials, update access status, and monitor clinical state.</p>
+          <h1 style={{ fontSize: "2rem", marginBottom: 6, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>
+            Patient Directory
+          </h1>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
+            Manage access, credentials, and clinical state for all registered users.
+          </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAddModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <UserPlus size={18} /> Add User
+        <button className="btn btn-primary" onClick={() => setShowAddModal(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 20px" }}>
+          <UserPlus size={16} /> Add User
         </button>
       </div>
 
-      {showAddModal && (
-        <AddUserModal 
-          onClose={() => setShowAddModal(false)} 
-          onSuccess={() => {
-            // refresh is automatic with Convex
-          }} 
-        />
-      )}
+      {showAddModal && <AddUserModal onClose={() => setShowAddModal(false)} onSuccess={() => {}} />}
+      {editingUser && <EditUserModal user={editingUser} onClose={() => setEditingUser(null)} onSuccess={() => {}} />}
 
-      {editingUser && (
-        <EditUserModal 
-          user={editingUser}
-          onClose={() => setEditingUser(null)} 
-          onSuccess={() => {
-            // refresh is automatic
-          }} 
-        />
-      )}
-
-      <div className="glass-panel hud-panel" style={{ padding: '0', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', gap: '16px', padding: '24px', borderBottom: '1px solid var(--glass-border)', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div className="input-with-icon" style={{ flex: 1 }}>
-            <Search size={18} className="input-icon" />
-            <input 
-              type="text" 
-              placeholder="Search users by name or mobile number..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <span className="hud-tag">SECURE RECORDS</span>
+      {/* Search + Count Bar */}
+      <div className="glass-panel" style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 14 }}>
+        <div className="input-with-icon" style={{ flex: 1 }}>
+          <Search size={16} className="input-icon" />
+          <input
+            type="text"
+            placeholder="Search by name or mobile number..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ padding: "10px 14px 10px 40px", fontSize: "0.9rem" }}
+          />
         </div>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>User Identity</th>
-                <th>Mobile Number</th>
-                <th>Status</th>
-                <th>Role</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {patients === undefined ? (
-                <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>Loading directory...</td></tr>
-              ) : !patients || !Array.isArray(patients) || patients.length === 0 ? (
-                <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>No users found. Add a user to get started.</td></tr>
-              ) : patients.map(patient => (
-                <tr key={patient._id}>
-                  <td style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(99, 102, 241, 0.15)' }}>
-                      <Users size={20} color="var(--accent-primary)" />
-                    </div>
-                    <div>
-                      <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1.05rem', margin: 0 }}>{patient.full_name}</p>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>ID: {patient._id}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ fontFamily: 'Outfit, monospace', background: 'var(--surface-base)', border: '1px solid var(--border-color)', padding: '4px 8px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
-                      {patient.mobile_number}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`badge ${(patient.status || 'active') === 'active' ? 'badge-green' : 'badge-red'}`}>
-                      {patient.status || 'active'}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
-                      {patient.role}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                      <button 
-                        onClick={() => navigate(`/patients/${patient._id}`)} 
-                        className="btn btn-secondary" 
-                        style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                        title="View clinical tests & charts"
-                      >
-                        <BarChart2 size={14} /> View State
-                      </button>
-                      <button 
-                        onClick={() => setEditingUser(patient)} 
-                        className="btn btn-secondary" 
-                        style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                        title="Edit user details"
-                      >
-                        <Edit2 size={14} /> Edit
-                      </button>
-                      <button 
-                        onClick={() => handleToggleStatus(patient._id, patient.status || "active")} 
-                        className={`btn ${(patient.status || "active") === 'active' ? 'btn-secondary' : 'btn-primary'}`} 
-                        style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', minWidth: '100px', justifyContent: 'center' }}
-                      >
-                        {(patient.status || 'active') === 'active' ? (
-                          <><ShieldAlert size={14} /> Deactivate</>
-                        ) : (
-                          <><ShieldCheck size={14} /> Activate</>
-                        )}
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteUser(patient._id, patient.full_name)} 
-                        className="btn btn-danger" 
-                        style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                        title="Delete user permanently"
-                      >
-                        <Trash2 size={14} /> Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          background: "rgba(37,99,235,0.07)", border: "1px solid rgba(37,99,235,0.18)",
+          color: "var(--accent-primary)", borderRadius: 8,
+          padding: "6px 14px", fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.05em",
+          whiteSpace: "nowrap",
+        }}>
+          <Users size={13} />
+          {isLoading ? "â€”" : patients?.length ?? 0} USERS
+        </span>
       </div>
 
-      {confirmConfig && createPortal(
+      {/* Directory Panel */}
+      <div className="glass-panel" style={{ padding: 0, overflow: "hidden" }}>
+
+        {/* Column Header */}
         <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "rgba(15, 23, 42, 0.45)",
-          backdropFilter: "blur(12px)",
-          zIndex: 99999,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "20px"
+          display: "grid",
+          gridTemplateColumns: "2fr 1.5fr 0.85fr 0.85fr 1.6fr",
+          padding: "12px 24px",
+          background: "#f8fafc",
+          borderBottom: "1px solid var(--border-color)",
+          gap: 12,
         }}>
-          <div className="glass-panel hud-panel animate-fade-in" style={{
-            width: "100%",
-            maxWidth: "420px",
-            padding: "36px",
-            borderRadius: "20px",
+          {["Patient", "Mobile / Login", "Status", "Role", "Actions"].map((h, i) => (
+            <span key={h} style={{
+              fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase" as const,
+              letterSpacing: "0.08em", color: "var(--text-secondary)",
+              textAlign: i === 4 ? "right" as const : "left" as const,
+            }}>{h}</span>
+          ))}
+        </div>
+
+        {/* Rows */}
+        {isLoading ? (
+          <div style={{ padding: "56px 24px", textAlign: "center", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+            Loading directory...
+          </div>
+        ) : isEmpty ? (
+          <div style={{ padding: "64px 24px", textAlign: "center" }}>
+            <Users size={40} style={{ color: "var(--border-color)", margin: "0 auto 12px", display: "block" }} />
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>No users found. Add a user to get started.</p>
+          </div>
+        ) : patients!.map((patient: any, idx: number) => {
+          const isActive = (patient.status || "active") === "active";
+          return (
+            <div
+              key={patient._id}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "2fr 1.5fr 0.85fr 0.85fr 1.6fr",
+                alignItems: "center",
+                padding: "15px 24px",
+                gap: 12,
+                borderBottom: idx === patients!.length - 1 ? "none" : "1px solid var(--border-color)",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "rgba(37,99,235,0.025)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
+            >
+              {/* Identity */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                <Avatar name={patient.full_name || ""} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <p style={{ fontWeight: 600, fontSize: "0.93rem", color: "var(--text-primary)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {patient.full_name}
+                    </p>
+                    <span style={{
+                      fontFamily: "monospace", fontSize: "0.72rem", fontWeight: 700,
+                      background: "rgba(99,102,241,0.12)", color: "#4f46e5",
+                      border: "1px solid rgba(99,102,241,0.25)",
+                      padding: "2px 7px", borderRadius: 6,
+                    }}>
+                      #{patient.patientId}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: "0.76rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                    <Mail size={11} />{patient.email || "No email"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Mobile */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <Phone size={13} style={{ color: "var(--text-secondary)", flexShrink: 0 }} />
+                <span style={{
+                  fontFamily: "monospace", fontSize: "0.88rem", fontWeight: 600,
+                  color: "var(--accent-primary)",
+                  background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.14)",
+                  padding: "3px 9px", borderRadius: 7,
+                }}>
+                  {patient.mobile_number}
+                </span>
+              </div>
+
+              {/* Status */}
+              <div><StatusPill status={patient.status || "active"} /></div>
+
+              {/* Role */}
+              <div>
+                <span style={{
+                  fontSize: "0.76rem", fontWeight: 600, color: "var(--text-secondary)",
+                  background: "var(--surface-hover)", border: "1px solid var(--border-color)",
+                  padding: "3px 10px", borderRadius: 20, textTransform: "capitalize",
+                }}>
+                  {patient.role}
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
+                <button onClick={() => navigate(`/patients/${patient._id}`)} title="View clinical state" style={actionBtnStyle("blue")}>
+                  <BarChart2 size={13} /><span>View</span>
+                </button>
+                <button onClick={() => setEditingUser(patient)} title="Edit user" style={actionBtnStyle("default")}>
+                  <Edit2 size={13} /><span>Edit</span>
+                </button>
+                <button
+                  onClick={() => handleResetPassword(patient)}
+                  disabled={resetLoading === patient._id}
+                  title="Reset password"
+                  style={actionBtnStyle("amber")}
+                >
+                  <KeyRound size={13} /><span>{resetLoading === patient._id ? "..." : "Reset"}</span>
+                </button>
+                <button
+                  onClick={() => handleToggleStatus(patient._id, patient.status || "active")}
+                  title={isActive ? "Deactivate" : "Activate"}
+                  style={actionBtnStyle(isActive ? "orange" : "green")}
+                >
+                  {isActive ? <UserX size={13} /> : <UserCheck size={13} />}
+                </button>
+                <button onClick={() => handleDeleteUser(patient._id, patient.full_name)} title="Delete user" style={actionBtnStyle("red")}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* CONFIRM MODAL */}
+      {confirmConfig && createPortal(
+        <div style={overlayStyle}>
+          <div className="glass-panel animate-fade-in" style={{
+            width: "100%", maxWidth: 400, padding: "36px 32px", borderRadius: 20,
             borderTop: `3px solid ${confirmConfig.isDanger ? "var(--danger)" : "var(--success)"}`,
-            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "24px",
-            alignItems: "center",
-            textAlign: "center"
+            display: "flex", flexDirection: "column", gap: 22, alignItems: "center", textAlign: "center",
           }}>
             <div style={{
-              padding: "16px",
-              background: confirmConfig.isDanger ? "rgba(244, 63, 94, 0.1)" : "rgba(16, 185, 129, 0.1)",
+              padding: 16,
+              background: confirmConfig.isDanger ? "rgba(239,68,68,0.1)" : "rgba(16,185,129,0.1)",
               borderRadius: "50%",
               color: confirmConfig.isDanger ? "var(--danger)" : "var(--success)",
-              border: `1px solid ${confirmConfig.isDanger ? "rgba(244, 63, 94, 0.25)" : "rgba(16, 185, 129, 0.25)"}`
+              border: `1px solid ${confirmConfig.isDanger ? "rgba(239,68,68,0.25)" : "rgba(16,185,129,0.25)"}`,
             }}>
-              {confirmConfig.isDanger ? <ShieldAlert size={36} /> : <ShieldCheck size={36} />}
+              {confirmConfig.isDanger ? <ShieldAlert size={32} /> : <ShieldCheck size={32} />}
             </div>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <h2 style={{ fontSize: "1.4rem", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                {confirmConfig.title}
-              </h2>
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.92rem", margin: 0, lineHeight: 1.5 }}>
-                {confirmConfig.message}
-              </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <h2 style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>{confirmConfig.title}</h2>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.87rem", margin: 0, lineHeight: 1.6 }}>{confirmConfig.message}</p>
             </div>
-
-            <div style={{ display: "flex", gap: "12px", width: "100%", marginTop: "8px" }}>
+            <div style={{ display: "flex", gap: 10, width: "100%" }}>
+              <button className="btn btn-secondary" style={{ flex: 1, padding: "11px" }} onClick={() => setConfirmConfig(null)}>Cancel</button>
               <button
-                type="button"
-                className="btn btn-secondary"
-                style={{ flex: 1, padding: "12px" }}
-                onClick={() => setConfirmConfig(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
                 className={confirmConfig.isDanger ? "btn btn-danger" : "btn btn-primary"}
-                style={{ flex: 1, padding: "12px" }}
-                onClick={() => {
-                  confirmConfig.onConfirm();
-                  setConfirmConfig(null);
-                }}
+                style={{ flex: 1, padding: "11px" }}
+                onClick={() => { confirmConfig.onConfirm(); setConfirmConfig(null); }}
               >
                 {confirmConfig.confirmText}
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* RESET PASSWORD RESULT MODAL */}
+      {resetResult && createPortal(
+        <div style={overlayStyle}>
+          <div className="glass-panel animate-fade-in" style={{
+            width: "100%", maxWidth: 460, padding: "36px 32px", borderRadius: 20,
+            borderTop: "3px solid #f59e0b",
+            display: "flex", flexDirection: "column", gap: 22,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ padding: 14, background: "rgba(245,158,11,0.12)", borderRadius: "50%", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b", flexShrink: 0 }}>
+                <KeyRound size={24} />
+              </div>
+              <div>
+                <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)" }}>Password Reset Successful</h2>
+                <p style={{ margin: 0, fontSize: "0.81rem", color: "var(--text-secondary)" }}>Share these credentials with the user personally</p>
+              </div>
+            </div>
+
+            <div style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 14, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+              <CredField label="Name" value={resetResult.userName} />
+              <CredField label="Login ID (Mobile)" value={resetResult.mobile} onCopy={() => handleCopy(resetResult.mobile)} />
+              <div>
+                <span style={credLabelStyle}>New Temporary Password</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 5 }}>
+                  <code style={{
+                    flex: 1, fontFamily: "monospace",
+                    background: "rgba(245,158,11,0.08)", border: "1.5px solid rgba(245,158,11,0.4)",
+                    padding: "10px 14px", borderRadius: 9,
+                    fontSize: "1.3rem", fontWeight: 700, color: "#f59e0b", letterSpacing: "0.12em",
+                  }}>
+                    {resetResult.newPassword}
+                  </code>
+                  <button
+                    onClick={() => handleCopy(resetResult!.newPassword)}
+                    style={{ background: "transparent", border: "none", cursor: "pointer", color: copied ? "var(--success)" : "var(--accent-primary)", padding: 6, display: "flex", alignItems: "center", gap: 4, fontSize: "0.8rem", fontWeight: 600 }}
+                  >
+                    {copied ? <><CheckCheck size={17} /> Copied!</> : <><Copy size={17} /> Copy</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, padding: "11px 14px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.18)", borderRadius: 10, alignItems: "flex-start" }}>
+              <span>Warning:</span>
+              <p style={{ margin: 0, fontSize: "0.79rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                <strong style={{ color: "var(--text-primary)" }}>Security notice:</strong> This password is shown only once. Share it via a secure personal channel only.
+              </p>
+            </div>
+
+            <button className="btn btn-primary" style={{ padding: "12px", fontSize: "0.9rem" }} onClick={() => { setResetResult(null); setCopied(false); }}>
+              Done - I have noted the Password
+            </button>
           </div>
         </div>,
         document.body

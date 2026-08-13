@@ -13,6 +13,14 @@ export default function EmergencyContactScreen() {
 
   const insets = useSafeAreaInsets();
 
+  const handlePhoneChange = (text: string) => {
+    // Only allow numbers and limit to 10 digits
+    const cleaned = text.replace(/[^0-9]/g, "").slice(0, 10);
+    setPhone(cleaned);
+  };
+
+  const isValid = name.trim().length > 0 && phone.length === 10;
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: Colors.background }}
@@ -33,12 +41,11 @@ export default function EmergencyContactScreen() {
       <Text style={styles.step}>Step 2 of 3</Text>
       <Text style={styles.title}>Emergency Contact</Text>
       <Text style={styles.subtitle}>
-        Someone we can reach if we're ever concerned about your safety. This is
-        optional but recommended.
+        Someone we can reach if we're ever concerned about your safety. This field is mandatory.
       </Text>
 
       <View style={styles.form}>
-        <Text style={styles.label}>Contact Name</Text>
+        <Text style={styles.label}>Contact Name *</Text>
         <TextInput
           style={styles.input}
           value={name}
@@ -47,21 +54,21 @@ export default function EmergencyContactScreen() {
           placeholderTextColor={Colors.textMuted}
         />
 
-        <Text style={styles.label}>Phone Number (optional)</Text>
+        <Text style={styles.label}>Phone Number (10 digits) *</Text>
         <TextInput
           style={styles.input}
           value={phone}
-          onChangeText={setPhone}
-          placeholder="e.g. +91 98765 43210"
+          onChangeText={handlePhoneChange}
+          placeholder="e.g. 9876543210"
           placeholderTextColor={Colors.textMuted}
-          keyboardType="phone-pad"
+          keyboardType="number-pad"
+          maxLength={10}
         />
       </View>
 
       <View style={styles.info}>
         <Text style={styles.infoText}>
-          💡 This information will only be used in situations where your safety
-          may be at risk.
+          💡 Emergency contact details are strictly required to ensure your safety in high-distress situations.
         </Text>
       </View>
 
@@ -71,25 +78,14 @@ export default function EmergencyContactScreen() {
           router.push({
             pathname: "/(auth)/onboarding/demographics",
             params: {
-              emergencyName: name,
-              emergencyPhone: phone,
+              emergencyName: name.trim(),
+              emergencyPhone: phone.trim(),
             },
           })
         }
+        disabled={!isValid}
         size="lg"
         style={{ marginTop: Theme.spacing.lg }}
-      />
-
-      <Button
-        title="Skip for now"
-        onPress={() =>
-          router.push({
-            pathname: "/(auth)/onboarding/demographics",
-            params: { emergencyName: "", emergencyPhone: "" },
-          })
-        }
-        variant="ghost"
-        style={{ marginTop: Theme.spacing.sm }}
       />
       </ScrollView>
     </KeyboardAvoidingView>

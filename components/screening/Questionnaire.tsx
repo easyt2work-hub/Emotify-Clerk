@@ -29,10 +29,11 @@ export function Questionnaire({
   initialAnswers,
   onAnswerChange,
 }: QuestionnaireProps) {
-  // Find first unanswered question to restore progress
   const initialIndex = initialAnswers ? initialAnswers.findIndex(a => a === null) : 0;
   const [currentIndex, setCurrentIndex] = useState(initialIndex === -1 ? 0 : initialIndex);
   const [answers, setAnswers] = useState<(number | null)[]>(() => initialAnswers || new Array(questions.length).fill(null));
+
+  const [showExplanation, setShowExplanation] = useState(false);
 
   const currentQuestion = questions[currentIndex];
   const selectedValue = answers[currentIndex];
@@ -46,10 +47,10 @@ export function Questionnaire({
     if (onAnswerChange) {
       onAnswerChange(newAnswers);
     }
-    // No auto-advance: user must tap "Next Question" to proceed
   }
 
   function goNext() {
+    setShowExplanation(false);
     if (isLastQuestion && allAnswered) {
       onComplete(answers as number[]);
     } else if (!isLastQuestion) {
@@ -58,6 +59,7 @@ export function Questionnaire({
   }
 
   function goPrev() {
+    setShowExplanation(false);
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
     } else if (onBack) {
@@ -90,11 +92,35 @@ export function Questionnaire({
           <View style={styles.questionCard}>
             <Text style={styles.questionLabel}>QUESTION {currentIndex + 1} OF {questions.length}</Text>
             <Text style={styles.questionText}>{currentQuestion.text}</Text>
+
+            {currentQuestion.explanation && (
+              <View style={styles.explanationContainer}>
+                <TouchableOpacity 
+                  onPress={() => setShowExplanation(!showExplanation)}
+                  style={styles.explanationToggleBtn}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
+                  <Text style={styles.explanationToggleText}>ⓘ What does this mean?</Text>
+                  <Ionicons 
+                    name={showExplanation ? "chevron-up" : "chevron-down"} 
+                    size={16} 
+                    color={Colors.primary} 
+                  />
+                </TouchableOpacity>
+
+                {showExplanation && (
+                  <View style={styles.explanationBox}>
+                    <Text style={styles.explanationText}>{currentQuestion.explanation}</Text>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.optionsList}>
-          {options.map((option, index) => (
+          {options.map((option) => (
             <View key={option.value}>
               <TouchableOpacity
                 onPress={() => selectOption(option.value)}
@@ -149,65 +175,71 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    padding: Theme.spacing.lg,
+    paddingHorizontal: Theme.spacing.lg,
     paddingTop: 60,
-    backgroundColor: 'rgba(255,255,255,0.8)',
+    paddingBottom: Theme.spacing.md,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: '#E2E8F0',
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   miniBackBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.white,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-    ...Theme.shadows.tertiary,
   },
   headerTitle: {
     fontFamily: Theme.fontFamily.bold,
     fontSize: 16,
-    color: Colors.text,
+    color: '#0F172A',
   },
   scrollContent: {
     padding: Theme.spacing.lg,
-    paddingBottom: 120,
+    paddingBottom: 130,
   },
   instruction: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: Theme.spacing.xl,
+    color: '#64748B',
+    marginBottom: Theme.spacing.lg,
     textAlign: 'center',
     lineHeight: 22,
   },
   questionCard: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: '#FFFFFF',
     borderRadius: Theme.borderRadius.xl,
     padding: Theme.spacing.xl,
-    marginBottom: Theme.spacing.xxl,
+    marginBottom: Theme.spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    ...Theme.shadows.tertiary,
+    borderColor: '#E2E8F0',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
   },
   questionLabel: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 10,
+    fontSize: 11,
     color: Colors.primary,
-    letterSpacing: 2,
-    marginBottom: 8,
+    letterSpacing: 1.5,
+    marginBottom: 10,
   },
   questionText: {
     fontFamily: Theme.fontFamily.bold,
-    fontSize: 22,
-    color: Colors.text,
-    lineHeight: 30,
+    fontSize: 20,
+    color: '#0F172A',
+    lineHeight: 28,
   },
   optionsList: {
     gap: 12,
@@ -216,44 +248,52 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    borderRadius: Theme.borderRadius.lg,
-    padding: Theme.spacing.lg,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: Theme.spacing.lg,
+    paddingVertical: 18,
     borderWidth: 1.5,
-    borderColor: 'transparent',
-    ...Theme.shadows.tertiary,
+    borderColor: '#E2E8F0',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   optionBtnSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.white,
+    backgroundColor: '#F5F3FF',
   },
   optionLabel: {
     fontFamily: Theme.fontFamily.medium,
     fontSize: 16,
-    color: Colors.text,
+    color: '#1E293B',
     flex: 1,
+    paddingRight: 10,
   },
   optionLabelSelected: {
     fontFamily: Theme.fontFamily.bold,
     color: Colors.primary,
   },
   radio: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
-    borderColor: '#E2E8F0',
+    borderColor: '#CBD5E1',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
   },
   radioSelected: {
     borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
   },
   radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.primary,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
   },
   footer: {
     position: 'absolute',
@@ -262,16 +302,50 @@ const styles = StyleSheet.create({
     right: 0,
     padding: Theme.spacing.lg,
     paddingBottom: 40,
-    backgroundColor: 'rgba(255,255,255,0.8)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.05)',
   },
   nextBtn: {
+    width: '100%',
     height: 56,
     borderRadius: 28,
   },
   submitBtn: {
+    width: '100%',
     height: 56,
     borderRadius: 28,
+  },
+  explanationContainer: {
+    marginTop: Theme.spacing.md,
+    paddingTop: Theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  explanationToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+  },
+  explanationToggleText: {
+    fontFamily: Theme.fontFamily.bold,
+    fontSize: 14,
+    color: Colors.primary,
+    flex: 1,
+  },
+  explanationBox: {
+    marginTop: 8,
+    padding: Theme.spacing.md,
+    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+    borderRadius: Theme.borderRadius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.primary,
+  },
+  explanationText: {
+    fontFamily: Theme.fontFamily.regular,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 19,
   },
 });

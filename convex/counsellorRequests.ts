@@ -21,6 +21,26 @@ export const create = mutation({
       thought_original: args.thought_original,
       situation_text: args.situation_text,
       timestamp: Date.now(),
+      status: "pending",
     });
   },
 });
+
+export const updateStatus = mutation({
+  args: {
+    requestId: v.id("counsellorRequests"),
+    status: v.string(),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    await ctx.db.patch(args.requestId, {
+      status: args.status,
+      notes: args.notes,
+      updatedAt: Date.now(),
+    });
+  },
+});
+

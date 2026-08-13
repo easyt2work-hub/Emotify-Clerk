@@ -3,6 +3,7 @@
 export interface ScreeningQuestion {
   id: number;
   text: string;
+  explanation?: string;
 }
 
 export interface ScreeningOption {
@@ -79,58 +80,8 @@ export const PQ16_OPTIONS: ScreeningOption[] = [
 
 export const PQ16_INSTRUCTION = 'Please indicate whether you have experienced any of the following:';
 
-// ─── WSAS (Work and Social Adjustment Scale) ───
-export const WSAS_QUESTIONS: ScreeningQuestion[] = [
-  { id: 1, text: 'My ability to work or study' },
-  { id: 2, text: 'My home management (cleaning, shopping, cooking, looking after home/children)' },
-  { id: 3, text: 'My social leisure activities (with other people)' },
-  { id: 4, text: 'My private leisure activities (done alone)' },
-  { id: 5, text: 'My ability to form and maintain close relationships' },
-];
-
-export const WSAS_OPTIONS: ScreeningOption[] = [
-  { label: '0 - Not at all', value: 0 },
-  { label: '1', value: 1 },
-  { label: '2 - Slightly', value: 2 },
-  { label: '3', value: 3 },
-  { label: '4 - Definitely', value: 4 },
-  { label: '5', value: 5 },
-  { label: '6 - Markedly', value: 6 },
-  { label: '7', value: 7 },
-  { label: '8 - Very severely', value: 8 },
-];
-
-export const WSAS_INSTRUCTION = 'How much do your current difficulties affect the following areas of your life?';
-
-// ─── ReQoL-10 (Recovering Quality of Life) ───
-export const REQOL10_QUESTIONS: ScreeningQuestion[] = [
-  { id: 1, text: 'I could do the things I wanted to do' },
-  { id: 2, text: 'I felt able to trust others' },
-  { id: 3, text: 'I felt unable to cope' },          // reverse scored
-  { id: 4, text: 'I felt happy' },
-  { id: 5, text: 'I felt lonely' },                   // reverse scored
-  { id: 6, text: 'I felt confident in myself' },
-  { id: 7, text: 'I felt hopeless' },                 // reverse scored
-  { id: 8, text: 'I enjoyed what I did' },
-  { id: 9, text: 'I felt close to other people' },
-  { id: 10, text: 'I felt I could think clearly' },
-];
-
-// Items that need reverse scoring (negatively worded)
-export const REQOL10_REVERSE_ITEMS = [3, 5, 7];
-
-export const REQOL10_OPTIONS: ScreeningOption[] = [
-  { label: 'None of the time', value: 0 },
-  { label: 'Only occasionally', value: 1 },
-  { label: 'Sometimes', value: 2 },
-  { label: 'Often', value: 3 },
-  { label: 'Most or all of the time', value: 4 },
-];
-
-export const REQOL10_INSTRUCTION = 'For each of the following, select the option that best describes your experiences over the last week:';
-
 // ─── Screening order ───
-export const SCREENING_ORDER = ['phq9', 'gad7', 'pq16', 'wsas', 'reqol10'] as const;
+export const SCREENING_ORDER = ['phq9', 'gad7'] as const;
 export type ScreeningType = typeof SCREENING_ORDER[number];
 
 // ─── Thinking Traps for Reframe Tool ───
@@ -147,19 +98,165 @@ export const THINKING_TRAPS = [
   { id: 'filtering', label: 'Mental Filtering', description: 'Focusing only on the negative details' },
 ];
 
-// ─── Emotions for Emotion Mapping ───
-export const EMOTIONS = [
-  { id: 'anger', label: '🔴 Anger, passion', color: '#EF4444' },
-  { id: 'excitement', label: '🟠 Excitement, enthusiasm', color: '#F97316' },
-  { id: 'happy', label: '🟡 Happiness, optimism', color: '#EAB308' },
-  { id: 'calm', label: '🟢 Calm, balance, safety', color: '#22C55E' },
-  { id: 'sad', label: '🔵 Sadness, peace', color: '#3B82F6' },
-  { id: 'creative', label: '🟣 Creativity, mystery', color: '#A855F7' },
-  { id: 'love', label: '🩷 Love, compassion', color: '#EC4899' },
-  { id: 'fearful', label: '⚫ Fear, grief', color: '#1E293B' },
-  { id: 'peaceful', label: '⚪ Peace, relief', color: '#F8FAFC' },
-  { id: 'disgusted', label: '🟤 Disgust, discomfort', color: '#78350F' },
+// ─── Emotions for Emotion Mapping (Client E01-E08 spec) ───
+export interface EmotionCatalogItem {
+  id: string;
+  code: string;
+  emoji: string;
+  label: string;
+  simpleMeaning: string;
+  commonFeelings: string[];
+  bodySensations: string[];
+  color: string;
+}
+
+export const EMOTIONS: EmotionCatalogItem[] = [
+  {
+    id: 'happy',
+    code: 'E01',
+    emoji: '😊',
+    label: 'Happy',
+    simpleMeaning: 'I feel good or something nice happened.',
+    commonFeelings: ['Excited', 'Joyful', 'Proud'],
+    bodySensations: ['Warm chest', 'Relaxed face', 'Smiling', 'Light body', 'Relaxed shoulders', 'Lots of energy'],
+    color: '#EAB308',
+  },
+  {
+    id: 'calm',
+    code: 'E02',
+    emoji: '😌',
+    label: 'Calm',
+    simpleMeaning: 'I feel safe, relaxed, and okay.',
+    commonFeelings: ['Peaceful', 'Comfortable'],
+    bodySensations: ['Relaxed shoulders', 'Slow breathing', 'Relaxed chest', 'Relaxed stomach', 'Relaxed hands', 'Peaceful body'],
+    color: '#22C55E',
+  },
+  {
+    id: 'sad',
+    code: 'E03',
+    emoji: '😔',
+    label: 'Sad',
+    simpleMeaning: 'Something hurts me or I feel low.',
+    commonFeelings: ['Lonely', 'Disappointed', 'Hurt'],
+    bodySensations: ['Heavy chest', 'Lump in throat', 'Tears', 'Heavy head', 'Tired body', 'Heavy legs', 'Low energy'],
+    color: '#3B82F6',
+  },
+  {
+    id: 'worried',
+    code: 'E04',
+    emoji: '😟',
+    label: 'Worried / Scared',
+    simpleMeaning: 'I think something bad might happen.',
+    commonFeelings: ['Fear', 'Nervous', 'Anxious'],
+    bodySensations: ['Tight chest', 'Fast heartbeat', 'Fast breathing', 'Upset stomach', 'Shaky hands', 'Sweaty hands', 'Tight shoulders', 'Restless legs'],
+    color: '#F97316',
+  },
+  {
+    id: 'angry',
+    code: 'E05',
+    emoji: '😡',
+    label: 'Angry / Upset',
+    simpleMeaning: 'I feel hurt, annoyed, or treated badly.',
+    commonFeelings: ['Frustrated', 'Irritated', 'Insulted'],
+    bodySensations: ['Hot face', 'Tight jaw', 'Tight hands', 'Tight shoulders', 'Tight chest', 'Fast heartbeat', 'Tense body', 'Restless body'],
+    color: '#EF4444',
+  },
+  {
+    id: 'embarrassed',
+    code: 'E06',
+    emoji: '😳',
+    label: 'Embarrassed / Ashamed',
+    simpleMeaning: 'I feel bad or uncomfortable about myself or what happened.',
+    commonFeelings: ['Shame', 'Awkwardness'],
+    bodySensations: ['Hot face', 'Red face', 'Tight chest', 'Lump in throat', 'Upset stomach', 'Tense body', 'Shaky feeling', 'Wanting to hide'],
+    color: '#A855F7',
+  },
+  {
+    id: 'guilty',
+    code: 'E07',
+    emoji: '😞',
+    label: 'Guilty / Regretful',
+    simpleMeaning: 'I feel bad about something I did or wish I had done differently.',
+    commonFeelings: ['Guilt', 'Regret'],
+    bodySensations: ['Heavy chest', 'Sinking feeling in stomach', 'Tight stomach', 'Lump in throat', 'Heavy body', 'Tight shoulders', 'Low energy'],
+    color: '#6366F1',
+  },
+  {
+    id: 'tired',
+    code: 'E08',
+    emoji: '😴',
+    label: 'Tired / Drained',
+    simpleMeaning: 'I feel like I have little energy left.',
+    commonFeelings: ['Exhausted', 'Overwhelmed'],
+    bodySensations: ['Heavy eyes', 'Heavy head', 'Weak legs', 'Tired arms', 'Heavy body', 'Slow body', 'Little energy', 'Hard to move'],
+    color: '#64748B',
+  },
 ];
+
+export const INTERVENTION_RECOMMENDATIONS: Record<string, {
+  activity: string;
+  studentFacingName: string;
+  recommendedDuration: string;
+  directResource: string;
+  rating: string;
+}> = {
+  worried: {
+    activity: 'Mindfulness of Breath',
+    studentFacingName: '🌬️ Calm My Mind',
+    recommendedDuration: '5–10 min',
+    directResource: 'Mindfulness / breathing meditation resources',
+    rating: '⭐⭐⭐⭐⭐',
+  },
+  angry: {
+    activity: 'JPMR / Pause & Relax / CBT',
+    studentFacingName: '🧘 Pause & Unwind',
+    recommendedDuration: '5–10 min',
+    directResource: 'Progressive muscle relaxation & CBT pause tool',
+    rating: '⭐⭐⭐⭐⭐',
+  },
+  embarrassed: {
+    activity: 'Loving-Kindness / Self-Compassion',
+    studentFacingName: '❤️ Be Kind to Myself',
+    recommendedDuration: '10 min',
+    directResource: '10-Minute Loving-Kindness Meditation – Self-Compassion',
+    rating: '⭐⭐⭐⭐⭐',
+  },
+  guilty: {
+    activity: 'Loving-Kindness / Self-Compassion',
+    studentFacingName: '❤️ Be Kind to Myself',
+    recommendedDuration: '10 min',
+    directResource: '10-Minute Self-Compassion & Loving-Kindness Meditation',
+    rating: '⭐⭐⭐⭐⭐',
+  },
+  sad: {
+    activity: 'Loving-Kindness / Self-Compassion',
+    studentFacingName: '❤️ Be Kind to Myself',
+    recommendedDuration: '10 min',
+    directResource: '10-Minute Loving-Kindness Meditation – Sharon Salzberg',
+    rating: '⭐⭐⭐⭐⭐',
+  },
+  tired: {
+    activity: 'Gentle mindfulness / restorative meditation',
+    studentFacingName: '🌿 Rest & Recharge',
+    recommendedDuration: '5–10 min',
+    directResource: 'Guided mindfulness/meditation library',
+    rating: '⭐⭐⭐',
+  },
+  happy: {
+    activity: 'Gratitude Meditation',
+    studentFacingName: '🌸 Notice the Good',
+    recommendedDuration: '10 min',
+    directResource: '10-Minute Gratitude Meditation',
+    rating: '⭐⭐⭐⭐⭐',
+  },
+  calm: {
+    activity: 'Breathing-paced calming music',
+    studentFacingName: '🌿 Stay in the Calm',
+    recommendedDuration: '3–10 min',
+    directResource: 'Breathing Cycles – calming breathing music',
+    rating: '⭐⭐⭐⭐⭐',
+  },
+};
 
 // ─── Body Regions for Emotion Mapping ───
 export const BODY_REGIONS = [

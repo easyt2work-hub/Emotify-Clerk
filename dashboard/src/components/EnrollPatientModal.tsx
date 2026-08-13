@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, User, Mail, Phone, Shield, CheckCircle, ChevronRight, Activity, Lock, Fingerprint, FileText, Check, Building } from "lucide-react";
 import { useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { api } from "../../convex/_generated/api";
 
 export default function EnrollPatientModal({ onClose }: { onClose: () => void }) {
   const createPatient = useMutation(api.patients.createPatient);
@@ -116,22 +116,22 @@ export default function EnrollPatientModal({ onClose }: { onClose: () => void })
   };
 
   return createPortal(
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(3, 8, 18, 0.6)', backdropFilter: 'blur(20px)', zIndex: 9999, display: 'flex', flexDirection: 'column', padding: '32px 20px' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(16px)', zIndex: 9999, display: 'flex', flexDirection: 'column', padding: '32px 20px' }}>
       
       {/* Ambient background glows for modal */}
-      <div style={{ position: 'absolute', width: '70vw', height: '70vw', background: 'radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, rgba(29, 78, 216, 0.06) 40%, transparent 65%)', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}></div>
+      <div style={{ position: 'absolute', width: '70vw', height: '70vw', background: 'radial-gradient(circle, rgba(37, 99, 235, 0.05) 0%, transparent 65%)', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}></div>
 
-      <div className="glass-panel animate-fade-in hide-scrollbar" style={{ width: '100%', maxWidth: '1100px', margin: 'auto', flex: '0 1 auto', maxHeight: '100%', padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '20px', border: '1px solid rgba(59, 130, 246, 0.2)', boxShadow: '0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(59,130,246,0.08), 0 0 40px rgba(59,130,246,0.1)', background: 'rgba(8, 18, 38, 0.95)' }}>
+      <div className="glass-panel animate-fade-in hide-scrollbar" style={{ width: '100%', maxWidth: '1100px', margin: 'auto', flex: '0 1 auto', maxHeight: '100%', padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '20px', border: '1px solid var(--border-color)', boxShadow: '0 32px 80px rgba(0,0,0,0.15)', background: '#ffffff' }}>
         
         {/* Header */}
-        <div style={{ padding: '20px 36px', borderBottom: '1px solid rgba(59, 130, 246, 0.1)', background: 'rgba(6, 14, 30, 0.6)', flex: '0 0 auto', position: 'relative' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.7), transparent)' }}></div>
+        <div style={{ padding: '20px 36px', borderBottom: '1px solid var(--border-color)', background: '#f8fafc', flex: '0 0 auto', position: 'relative' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.7), transparent)' }}></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <h2 style={{ fontSize: '1.45rem', fontWeight: 600, color: 'white', marginBottom: '3px', letterSpacing: '-0.02em', fontFamily: "'DM Sans', sans-serif" }}>Enroll New Patient</h2>
+              <h2 style={{ fontSize: '1.45rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '3px', letterSpacing: '-0.02em', fontFamily: "'DM Sans', sans-serif" }}>Enroll New Patient</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.87rem' }}>Create a secure clinical profile and initialize therapeutic monitoring.</p>
             </div>
-            <button onClick={onClose} style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', color: 'var(--text-secondary)', cursor: 'pointer', padding: '7px', borderRadius: '50%', transition: 'all 0.2s', flexShrink: 0 }} className="modal-close-btn">
+            <button onClick={onClose} style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: 'var(--text-secondary)', cursor: 'pointer', padding: '7px', borderRadius: '50%', transition: 'all 0.2s', flexShrink: 0 }} className="modal-close-btn">
               <X size={20} />
             </button>
           </div>
@@ -149,9 +149,9 @@ export default function EnrollPatientModal({ onClose }: { onClose: () => void })
                    <div style={{ 
                      width: '26px', height: '26px', borderRadius: '50%', 
                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem',
-                     background: step === num ? 'rgba(217, 70, 239, 0.2)' : step > num ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.05)',
-                     border: `1px solid ${step === num ? 'var(--accent-primary)' : step > num ? 'var(--success)' : 'rgba(255,255,255,0.1)'}`,
-                     boxShadow: step === num ? '0 0 12px rgba(217, 70, 239, 0.4)' : 'none'
+                     background: step === num ? 'rgba(37, 99, 235, 0.15)' : step > num ? 'rgba(16, 185, 129, 0.15)' : '#e2e8f0',
+                     border: `1px solid ${step === num ? 'var(--accent-primary)' : step > num ? 'var(--success)' : '#cbd5e1'}`,
+                     boxShadow: step === num ? '0 0 12px rgba(37, 99, 235, 0.2)' : 'none'
                    }}>
                      {step > num ? <Check size={16} /> : num}
                    </div>
@@ -160,7 +160,7 @@ export default function EnrollPatientModal({ onClose }: { onClose: () => void })
                    </span>
                  </div>
                  {num < 4 && (
-                   <div style={{ flex: 1, height: '1px', background: step > num ? 'var(--success)' : 'rgba(255,255,255,0.05)', margin: '0 12px', borderRadius: '2px', transition: 'all 0.3s' }}></div>
+                   <div style={{ flex: 1, height: '1px', background: step > num ? 'var(--success)' : '#e2e8f0', margin: '0 12px', borderRadius: '2px', transition: 'all 0.3s' }}></div>
                  )}
                </div>
              ))}
@@ -176,7 +176,7 @@ export default function EnrollPatientModal({ onClose }: { onClose: () => void })
             {/* STEP 1 */}
             {step === 1 && (
               <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <h3 style={{ fontSize: '1rem', color: 'white', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: "'DM Sans', sans-serif" }}><User size={18} color="#60a5fa" /> Basic Information</h3>
+                <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: "'DM Sans', sans-serif" }}><User size={18} color="var(--accent-primary)" /> Basic Information</h3>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
                   <div className="form-group" style={{ gridColumn: 'span 2' }}>
@@ -224,10 +224,10 @@ export default function EnrollPatientModal({ onClose }: { onClose: () => void })
                           fontSize: '0.9rem',
                           fontWeight: 500,
                           transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                          border: `1px solid ${formData.gender === g ? '#3b82f6' : 'rgba(59,130,246,0.12)'}`,
-                          background: formData.gender === g ? 'rgba(59,130,246,0.18)' : 'rgba(10,25,55,0.5)',
-                          color: formData.gender === g ? '#93c5fd' : 'var(--text-secondary)',
-                          boxShadow: formData.gender === g ? '0 4px 16px rgba(59,130,246,0.2)' : 'none',
+                          border: `1px solid ${formData.gender === g ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                          background: formData.gender === g ? 'rgba(37, 99, 235, 0.08)' : '#f8fafc',
+                          color: formData.gender === g ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                          boxShadow: formData.gender === g ? '0 4px 16px rgba(37, 99, 235, 0.15)' : 'none',
                           transform: formData.gender === g ? 'translateY(-1px)' : 'none'
                         }}
                       >
@@ -272,8 +272,8 @@ export default function EnrollPatientModal({ onClose }: { onClose: () => void })
 
             {/* STEP 2 */}
             {step === 2 && (
-              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                <h3 style={{ fontSize: '1.3rem', color: 'white', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: "'DM Sans', sans-serif" }}><Activity size={22} color="var(--accent-primary)" /> Clinical Information</h3>
+              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: "'DM Sans', sans-serif" }}><Activity size={22} color="var(--accent-primary)" /> Clinical Information</h3>
                 
                 <div className="form-group">
                   <label>Initial Risk Assessment Level</label>
@@ -287,19 +287,18 @@ export default function EnrollPatientModal({ onClose }: { onClose: () => void })
                         style={{ 
                           padding: '16px', 
                           borderRadius: '10px', 
-                          border: `1px solid ${formData.initialRiskLevel === r ? getRiskColor(r) : 'rgba(59,130,246,0.1)'}`,
-                          background: formData.initialRiskLevel === r ? getRiskBg(r) : 'rgba(10,25,55,0.5)',
+                          border: `1px solid ${formData.initialRiskLevel === r ? getRiskColor(r) : 'var(--border-color)'}`,
+                          background: formData.initialRiskLevel === r ? getRiskBg(r) : '#f8fafc',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '12px',
                           transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                          boxShadow: formData.initialRiskLevel === r ? `0 0 20px ${getRiskBg(r)}` : 'none',
                           transform: formData.initialRiskLevel === r ? 'translateY(-1px)' : 'none'
                         }}
                       >
-                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: formData.initialRiskLevel === r ? getRiskColor(r) : 'rgba(255,255,255,0.1)', transition: 'all 0.3s' }}></div>
-                        <span style={{ color: formData.initialRiskLevel === r ? 'white' : 'var(--text-secondary)', textTransform: 'capitalize', fontWeight: formData.initialRiskLevel === r ? 600 : 500, fontSize: '1.05rem' }}>{r} Risk</span>
+                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: formData.initialRiskLevel === r ? getRiskColor(r) : '#cbd5e1', transition: 'all 0.3s' }}></div>
+                        <span style={{ color: formData.initialRiskLevel === r ? 'var(--text-primary)' : 'var(--text-secondary)', textTransform: 'capitalize', fontWeight: formData.initialRiskLevel === r ? 600 : 500, fontSize: '1.05rem' }}>{r} Risk</span>
                       </div>
                     ))}
                   </div>
@@ -334,118 +333,66 @@ export default function EnrollPatientModal({ onClose }: { onClose: () => void })
 
             {/* STEP 4 */}
             {step === 4 && (
-              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                 <h3 style={{ fontSize: '1.3rem', color: 'white', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: "'DM Sans', sans-serif" }}><FileText size={22} color="var(--accent-primary)" /> Consent & Confirmation</h3>
-                 
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', background: 'rgba(255,255,255,0.02)', padding: '32px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <label className="checkbox-row">
-                      <input type="checkbox" checked={formData.consentRequired} onChange={e => setFormData({...formData, consentRequired: e.target.checked})} />
-                      <span>
-                        <strong style={{ display: 'block', color: 'white', marginBottom: '4px' }}>Patient consent required on first login</strong>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block' }}>User must digitally sign the therapeutic agreement before accessing tools.</span>
-                      </span>
-                    </label>
+              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: "'DM Sans', sans-serif" }}><FileText size={22} color="var(--accent-primary)" /> Clinical Consent Agreements</h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                    <input type="checkbox" checked={formData.consentRequired} onChange={e => setFormData({...formData, consentRequired: e.target.checked})} style={{ marginTop: '3px' }} />
+                    <div>
+                      <strong style={{ color: 'var(--text-primary)', display: 'block' }}>Mandatory Intake Consent</strong>
+                      <span style={{ fontSize: '0.83rem', color: 'var(--text-secondary)' }}>Patient has signed terms of engagement for digital therapy telemonitoring.</span>
+                    </div>
+                  </label>
 
-                    <label className="checkbox-row">
-                      <input type="checkbox" checked={formData.clinicalMonitoring} onChange={e => setFormData({...formData, clinicalMonitoring: e.target.checked})} />
-                      <span>
-                        <strong style={{ display: 'block', color: 'white', marginBottom: '4px' }}>Clinical monitoring enabled</strong>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block' }}>Allow dashboard to receive real-time emotional logs and screening scores.</span>
-                      </span>
-                    </label>
-
-                    <label className="checkbox-row">
-                      <input type="checkbox" checked={formData.emergencyAgreement} onChange={e => setFormData({...formData, emergencyAgreement: e.target.checked})} />
-                      <span>
-                        <strong style={{ display: 'block', color: 'white', marginBottom: '4px' }}>Emergency escalation agreement</strong>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block' }}>Acknowledge that severe flags will trigger institutional crisis protocols.</span>
-                      </span>
-                    </label>
-
-                    <label className="checkbox-row">
-                      <input type="checkbox" checked={formData.researchParticipation} onChange={e => setFormData({...formData, researchParticipation: e.target.checked})} />
-                      <span>
-                        <strong style={{ display: 'block', color: 'white', marginBottom: '4px' }}>Research participation optional</strong>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block' }}>Allow anonymized data to be exported for clinical trials.</span>
-                      </span>
-                    </label>
-                 </div>
-                 <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center' }}>By clicking Create Patient Profile, you confirm that you have verified the patient's identity according to institutional guidelines.</p>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                    <input type="checkbox" checked={formData.emergencyAgreement} onChange={e => setFormData({...formData, emergencyAgreement: e.target.checked})} style={{ marginTop: '3px' }} />
+                    <div>
+                      <strong style={{ color: 'var(--text-primary)', display: 'block' }}>Emergency Escalation Protocol</strong>
+                      <span style={{ fontSize: '0.83rem', color: 'var(--text-secondary)' }}>Permission to dispatch urgent alerts to emergency contact if suicide flag triggers.</span>
+                    </div>
+                  </label>
+                </div>
               </div>
             )}
 
           </div>
 
-          {/* Right: Live Summary Panel */}
-          <div style={{ flex: '1', position: 'sticky', top: 0 }}>
-            <div style={{ background: 'rgba(6, 14, 28, 0.7)', borderRadius: '16px', padding: '24px', border: '1px solid rgba(59,130,246,0.12)', display: 'flex', flexDirection: 'column', backdropFilter: 'blur(16px)' }}>
-               
-               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '24px' }}>
-                <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(29,78,216,0.25))', border: '1px solid rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <User size={24} color="#60a5fa" />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.1rem', color: 'white', margin: 0, fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>{formData.preferredName || formData.fullName || 'New Patient'}</h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
-                    {formData.initialRiskLevel ? (
-                      <span style={{ padding: '4px 12px', background: getRiskBg(formData.initialRiskLevel), color: getRiskColor(formData.initialRiskLevel), borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', border: `1px solid ${getRiskColor(formData.initialRiskLevel)}30` }}>
-                        {formData.initialRiskLevel} Risk
-                      </span>
-                    ) : (
-                      <span style={{ padding: '4px 12px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        Risk Pending
-                      </span>
-                    )}
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Enrollment Pending</span>
-                  </div>
-                </div>
+          {/* Right: Summary Panel */}
+          <div style={{ flex: '1', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+             <div>
+               <h4 style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.1em', marginBottom: '10px', fontWeight: 700 }}>Patient Summary</h4>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.88rem', background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}>Full Name:</span> <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formData.fullName || 'Awaiting…'}</span></div>
+                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}>Age:</span> <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formData.age ? formData.age : 'Awaiting…'}</span></div>
+                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}>Gender:</span> <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formData.gender || 'Awaiting…'}</span></div>
+                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}>Contact:</span> <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formData.phone || formData.email || 'Awaiting…'}</span></div>
+               </div>
              </div>
-
-             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-               <div>
-                 <h4 style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#60a5fa', letterSpacing: '0.1em', marginBottom: '10px', fontWeight: 600 }}>Patient Summary</h4>
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.88rem', background: 'rgba(6,14,28,0.5)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(59,130,246,0.1)' }}>
-                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}>Full Name:</span> <span style={{ color: formData.fullName ? 'white' : 'var(--text-secondary)', fontStyle: formData.fullName ? 'normal' : 'italic', fontWeight: formData.fullName ? 600 : 400, fontSize: '0.88rem', textAlign: 'right', maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.fullName || 'Awaiting…'}</span></div>
-                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}>Age:</span> <span style={{ color: formData.age ? 'white' : 'var(--text-secondary)', fontStyle: formData.age ? 'normal' : 'italic', fontWeight: formData.age ? 600 : 400, fontSize: '0.88rem' }}>{formData.age ? formData.age : 'Awaiting…'}</span></div>
-                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}>Gender:</span> <span style={{ color: formData.gender ? 'white' : 'var(--text-secondary)', fontStyle: formData.gender ? 'normal' : 'italic', fontWeight: formData.gender ? 600 : 400, fontSize: '0.88rem' }}>{formData.gender || 'Awaiting…'}</span></div>
-                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--text-secondary)', fontSize: '0.83rem' }}>Contact:</span> <span style={{ color: formData.phone || formData.email ? 'white' : 'var(--text-secondary)', fontStyle: formData.phone || formData.email ? 'normal' : 'italic', fontWeight: formData.phone || formData.email ? 600 : 400, fontSize: '0.88rem' }}>{formData.phone || formData.email || 'Awaiting…'}</span></div>
-                 </div>
+             <div>
+               <h4 style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.1em', marginBottom: '10px', fontWeight: 700 }}>Security Status</h4>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', fontSize: '0.88rem', background: '#ffffff', padding: '14px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--success)', fontWeight: 500 }}><Lock size={16}/> Device Lock Enabled</div>
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--success)', fontWeight: 500 }}><Fingerprint size={16}/> Single Device Active</div>
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-primary)', fontWeight: 500 }}><Shield size={16}/> Secure Credentials Pending</div>
                </div>
-
-               <div>
-                 <h4 style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#60a5fa', letterSpacing: '0.1em', marginBottom: '10px', fontWeight: 600 }}>Security Status</h4>
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', fontSize: '0.88rem', background: 'rgba(6,14,28,0.5)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(59,130,246,0.1)' }}>
-                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: formData.deviceLock ? 'var(--success)' : 'var(--text-secondary)', fontWeight: 500 }}><Lock size={16}/> Device Lock {formData.deviceLock ? 'Enabled' : 'Disabled'}</div>
-                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: formData.singleDevice ? 'var(--success)' : 'var(--text-secondary)', fontWeight: 500 }}><Fingerprint size={16}/> Single Device {formData.singleDevice ? 'Active' : 'Off'}</div>
-                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-primary)', fontWeight: 500 }}><Shield size={16}/> Secure Credentials Pending</div>
-                 </div>
-               </div>
-
-               <div>
-                 <h4 style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#60a5fa', letterSpacing: '0.1em', marginBottom: '10px', fontWeight: 600 }}>Recommended Track</h4>
-                 <div style={{ padding: '14px', background: formData.initialRiskLevel ? getRiskBg(formData.initialRiskLevel) : 'rgba(6,14,28,0.5)', borderRadius: '10px', border: formData.initialRiskLevel ? `1px solid ${getRiskColor(formData.initialRiskLevel)}35` : '1px solid rgba(59,130,246,0.1)' }}>
-                    {renderRecommendations()}
-                 </div>
-               </div>
-
              </div>
-            </div>
           </div>
-          
+
         </div>
 
         {/* Footer Actions */}
-        <div style={{ flex: '0 0 auto', padding: '14px 36px', borderTop: '1px solid rgba(59, 130, 246, 0.1)', background: 'rgba(6, 14, 30, 0.6)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button className="btn btn-secondary" onClick={onClose} style={{ opacity: 0.8, padding: '12px 24px', fontSize: '1rem' }}>Cancel Enrollment</button>
+        <div style={{ flex: '0 0 auto', padding: '14px 36px', borderTop: '1px solid var(--border-color)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button className="btn btn-secondary" onClick={onClose} style={{ padding: '10px 20px', fontSize: '0.9rem' }}>Cancel Enrollment</button>
           
-          <div style={{ display: 'flex', gap: '16px' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
             {step > 1 && (
-              <button className="btn btn-secondary" onClick={() => setStep(step - 1)} style={{ padding: '12px 24px', fontSize: '1rem' }}>Back</button>
+              <button className="btn btn-secondary" onClick={() => setStep(step - 1)} style={{ padding: '10px 20px', fontSize: '0.9rem' }}>Back</button>
             )}
             {step < 4 ? (
-              <button className="btn btn-primary" onClick={() => setStep(step + 1)} style={{ padding: '12px 32px', fontSize: '1rem' }}>Continue <ChevronRight size={18} /></button>
+              <button className="btn btn-primary" onClick={() => setStep(step + 1)} style={{ padding: '10px 24px', fontSize: '0.9rem' }}>Continue <ChevronRight size={18} /></button>
             ) : (
-              <button className="btn btn-primary" onClick={handleEnroll} disabled={isSubmitting} style={{ padding: '12px 32px', fontSize: '1rem', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', boxShadow: '0 8px 24px rgba(217, 70, 239, 0.4)' }}>
+              <button className="btn btn-primary" onClick={handleEnroll} disabled={isSubmitting} style={{ padding: '10px 24px', fontSize: '0.9rem' }}>
                 {isSubmitting ? 'Creating Profile...' : 'Create Patient Profile'} <CheckCircle size={18} />
               </button>
             )}
